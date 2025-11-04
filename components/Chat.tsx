@@ -1,0 +1,325 @@
+import React, { useEffect, useState, useRef } from 'react'
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image } from 'react-native'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useSocket } from '@/hooks/useSocket'
+import { ChatMessage } from '@/types'
+import { API_URL } from '@/config/constants'
+
+export default function Chat() {
+  const { user } = useAuthStore()
+  const {
+    sendChatMessage,
+    requestChatHistory,
+    onChatMessage,
+    offChatMessage,
+    onChatHistory,
+    offChatHistory,
+    onChatRemove,
+    offChatRemove,
+    emitChatTyping,
+  } = useSocket()
+
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(true)
+  const flatListRef = useRef<FlatList>(null)
+
+  useEffect(() => {
+    const handleHistory = (history: ChatMessage[]) => {
+      setMessages(history)
+      setLoading(false)
+    }
+
+    const handleNew = (msg: ChatMessage) => {
+      setMessages((prev) => [...prev.slice(-99), msg])
+    }
+
+    const handleRemove = (messageId: string) => {
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId))
+    }
+
+    onChatHistory(handleHistory)
+    onChatMessage(handleNew)
+    onChatRemove(handleRemove)
+
+    fetch(`${API_URL}/api/chat/messages?take=20`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.items) {
+          setMessages(data.items)
+          setLoading(false)
+        } else {
+          requestChatHistory()
+        }
+      })
+      .catch(() => requestChatHistory())
+
+    return () => {
+      offChatHistory(handleHistory)
+      offChatMessage(handleNew)
+      offChatRemove(handleRemove)
+    }
+  }, [])
+
+  const onSubmit = async () => {
+    const text = input.trim()
+    if (!text) return
+
+    const optimisticMessage: ChatMessage = {
+      id: `temp-${Date.now()}`,
+      userId: user?.id || null,
+      username: user?.username || 'Guest',
+      text,
+      timestamp: Date.now(),
+      type: 'message'
+    }
+    setMessages(prev => [...prev, optimisticMessage])
+    setInput('')
+
+    try {
+      const response = await fetch(`${API_URL}/api/chat/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id || null,
+          username: user?.username || 'Guest',
+          text
+        })
+      })
+
+      if (response.ok) {
+        const savedMessage = await response.json()
+        setMessages(prev => prev.map(m => 
+          m.id === optimisticMessage.id ? savedMessage : m
+        ))
+        sendChatMessage(text)
+      }
+    } catch (error) {
+      console.error('Error saving message:', error)
+      sendChatMessage(text)
+    }
+  }
+
+  const renderMessage = ({ item }: { item: ChatMessage }) => {
+    if (item.type === 'system') {
+      return (
+        <View style={styles.systemMessage}>
+          <Text style={styles.systemMessageText}>
+            {item.username} {item.text}
+          </Text>
+        </View>
+      )
+    }
+
+    return (
+      <View style={styles.message}>
+        {item.avatarUrl ? (
+          <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              {item.username.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={styles.messageContent}>
+          <View style={styles.messageHeader}>
+            <Text style={styles.username}>{item.username}</Text>
+            <Text style={styles.timestamp}>
+              {new Date(item.timestamp).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+          <Text style={styles.messageText}>{item.text}</Text>
+        </View>
+      </View>
+    )
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>General Chat</Text>
+        <View style={styles.onlineIndicator}>
+          <View style={styles.onlineDot} />
+        </View>
+      </View>
+
+      {loading ? (
+        <Text style={styles.loadingText}>Loading...</Text>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          style={styles.messageList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        />
+      )}
+
+      <View style={styles.inputContainer}>
+        {user?.avatarUrl ? (
+          <Image source={{ uri: user.avatarUrl }} style={styles.inputAvatar} />
+        ) : (
+          <View style={[styles.inputAvatar, styles.avatarPlaceholder]}>
+            <Text style={styles.avatarText}>
+              {(user?.username || 'G').charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <TextInput
+          style={styles.input}
+          placeholder="Write a message..."
+          value={input}
+          onChangeText={(text) => {
+            setInput(text)
+            emitChatTyping(true)
+          }}
+          onSubmitEditing={onSubmit}
+        />
+        <TouchableOpacity style={styles.sendButton} onPress={onSubmit}>
+          <Text style={styles.sendButtonText}>→</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    height: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  onlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+  },
+  messageList: {
+    flex: 1,
+    marginBottom: 12,
+  },
+  message: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  systemMessage: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  systemMessageText: {
+    fontSize: 12,
+    color: '#6b7280',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  avatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  avatarText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#6b7280',
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  username: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginRight: 8,
+  },
+  timestamp: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  messageText: {
+    fontSize: 14,
+    color: '#4b5563',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inputAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: 14,
+    paddingVertical: 24,
+  },
+})
