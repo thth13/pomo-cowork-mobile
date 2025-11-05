@@ -2,133 +2,201 @@ import { useEffect, useRef, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useTimerStore } from '@/stores/useTimerStore'
-import { ActiveSession, ChatMessage, SessionStatus } from '@/types'
+import type { ActiveSession, ChatMessage, User } from '@/types'
 import { SOCKET_URL } from '@/config/constants'
 
+let sharedSocket: Socket | null = null
+let initialized = false
+const connectionListeners = new Set<(status: boolean) => void>()
+
+const notifyConnectionListeners = (status: boolean) => {
+  connectionListeners.forEach((listener) => {
+    try {
+      listener(status)
+    } catch (error) {
+      console.error('[Socket] Connection listener error', error)
+    }
+  })
+}
+
+const buildPresencePayload = (user: User | null | undefined) => {
+  if (user?.id) {
+    return {
+      userId: user.id,
+      username: user.username,
+      avatarUrl: user.avatarUrl ?? null,
+      anonymousId: null,
+    }
+  }
+
+  return {
+    userId: null,
+    username: 'Guest',
+    avatarUrl: null,
+    anonymousId: null,
+  }
+}
+
+const initSocketOnce = () => {
+  if (initialized) return
+  initialized = true
+
+  console.log('[Socket] Initializing connection to', SOCKET_URL)
+
+  sharedSocket = io(SOCKET_URL, {
+    path: '/socket',
+    transports: ['websocket', 'polling'],
+    timeout: 5000,
+    autoConnect: true,
+    reconnection: true,
+    reconnectionDelay: 2000,
+    reconnectionAttempts: 5,
+    withCredentials: true,
+  })
+
+  const socket = sharedSocket
+  if (!socket) return
+
+  const setActiveSessions = useTimerStore.getState().setActiveSessions
+
+  socket.on('connect', () => {
+    console.log('[Socket] Connected to server')
+    notifyConnectionListeners(true)
+
+    socket.emit('get-active-sessions')
+    socket.emit('get-online-users')
+
+    const user = useAuthStore.getState().user ?? null
+    socket.emit('join-presence', buildPresencePayload(user))
+  })
+
+  socket.on('reconnect', () => {
+    console.log('[Socket] Reconnected to server')
+    socket.emit('get-online-users')
+    const user = useAuthStore.getState().user ?? null
+    socket.emit('join-presence', buildPresencePayload(user))
+  })
+
+  socket.on('disconnect', () => {
+    console.log('[Socket] Disconnected from server')
+    notifyConnectionListeners(false)
+  })
+
+  socket.on('session-update', (sessions: ActiveSession[]) => {
+    setActiveSessions(sessions)
+  })
+
+  socket.on('connect_error', (error) => {
+    console.error('[Socket] Connection error:', error?.message || error)
+  })
+
+  socket.on('reconnect_attempt', (attempt) => {
+    console.log('[Socket] Reconnect attempt', attempt)
+  })
+
+  socket.on('reconnect_failed', () => {
+    console.error('[Socket] Reconnect failed – giving up')
+  })
+}
+
 export const useSocket = () => {
-  const socketRef = useRef<Socket | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
+  const socketRef = useRef<Socket | null>(sharedSocket)
+  const [isConnected, setIsConnected] = useState<boolean>(sharedSocket?.connected ?? false)
   const { user } = useAuthStore()
-  const { setActiveSessions } = useTimerStore()
 
   useEffect(() => {
-    console.log('[Socket] Initializing connection to', SOCKET_URL)
-    const socket = io(SOCKET_URL, {
-    transports: ['websocket'],
-      path: '/socket',
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      timeout: 5000,
-      autoConnect: true,
-      withCredentials: true
-    })
+    initSocketOnce()
 
+    socketRef.current = sharedSocket
 
-    socketRef.current = socket
+    const handleStatus = (status: boolean) => setIsConnected(status)
+    connectionListeners.add(handleStatus)
 
-    socket.on('connect', () => {
-      console.log('[Socket] Connected to server')
+    if (sharedSocket?.connected) {
       setIsConnected(true)
-      
-      if (user) {
-        socket.emit('user:join', {
-          userId: user.id,
-          username: user.username,
-          avatarUrl: user.avatarUrl,
-        })
-      }
-    })
-
-    socket.on('disconnect', () => {
-      console.log('[Socket] Disconnected from server')
-      setIsConnected(false)
-    })
-
-    socket.on('sessions:list', (sessions: ActiveSession[]) => {
-      setActiveSessions(sessions)
-    })
-
-    socket.on('connect_error', (error) => {
-      console.error('[Socket] Connection error:', error?.message || error)
-    })
-
-    socket.on('reconnect_attempt', (attempt) => {
-      console.log('[Socket] Reconnect attempt', attempt)
-    })
-
-    socket.on('reconnect_failed', () => {
-      console.error('[Socket] Reconnect failed – giving up')
-    })
+    }
 
     return () => {
-      console.log('[Socket] Cleaning up connection')
-      socket.disconnect()
+      connectionListeners.delete(handleStatus)
     }
+  }, [])
+
+  useEffect(() => {
+    if (!sharedSocket || !sharedSocket.connected) return
+
+    sharedSocket.emit('join-presence', buildPresencePayload(user))
   }, [user])
 
   const emitSessionStart = (sessionData: any) => {
-    socketRef.current?.emit('session:start', sessionData)
+    sharedSocket?.emit('session-start', sessionData)
   }
 
   const emitSessionSync = (sessionData: any) => {
-    socketRef.current?.emit('session:sync', sessionData)
+    sharedSocket?.emit('session-sync', sessionData)
   }
 
   const emitSessionPause = (sessionId: string) => {
-    socketRef.current?.emit('session:pause', sessionId)
+    sharedSocket?.emit('session-pause', sessionId)
   }
 
-  const emitSessionEnd = (sessionId: string, reason: string, options?: any) => {
-    socketRef.current?.emit('session:end', { sessionId, reason, ...options })
+  const emitSessionEnd = (
+    sessionId: string,
+    reason: 'manual' | 'completed' | 'reset' = 'manual',
+    options?: { removeActivity?: boolean }
+  ) => {
+    sharedSocket?.emit('session-end', {
+      sessionId,
+      reason,
+      ...(options?.removeActivity ? { removeActivity: true } : {}),
+    })
   }
 
   const emitTimerTick = (sessionId: string, timeRemaining: number) => {
-    socketRef.current?.emit('session:tick', { sessionId, timeRemaining })
+    sharedSocket?.emit('timer-tick', { sessionId, timeRemaining })
   }
 
   const sendChatMessage = (text: string) => {
-    socketRef.current?.emit('chat:message', { text })
+    sharedSocket?.emit('chat-send', { text })
   }
 
   const requestChatHistory = () => {
-    socketRef.current?.emit('chat:history')
+    sharedSocket?.emit('chat-history')
   }
 
   const emitChatTyping = (isTyping: boolean) => {
-    socketRef.current?.emit('chat:typing', { isTyping })
+    sharedSocket?.emit('chat-typing', { isTyping })
   }
 
   const onChatMessage = (callback: (message: ChatMessage) => void) => {
-    socketRef.current?.on('chat:message', callback)
+    sharedSocket?.on('chat-new', callback)
   }
 
   const offChatMessage = (callback: (message: ChatMessage) => void) => {
-    socketRef.current?.off('chat:message', callback)
+    sharedSocket?.off('chat-new', callback)
   }
 
   const onChatHistory = (callback: (messages: ChatMessage[]) => void) => {
-    socketRef.current?.on('chat:history', callback)
+    sharedSocket?.on('chat-history', callback)
   }
 
   const offChatHistory = (callback: (messages: ChatMessage[]) => void) => {
-    socketRef.current?.off('chat:history', callback)
+    sharedSocket?.off('chat-history', callback)
   }
 
   const onChatRemove = (callback: (messageId: string) => void) => {
-    socketRef.current?.on('chat:remove', callback)
+    sharedSocket?.on('chat-remove', callback)
   }
 
   const offChatRemove = (callback: (messageId: string) => void) => {
-    socketRef.current?.off('chat:remove', callback)
+    sharedSocket?.off('chat-remove', callback)
   }
 
   const onChatTyping = (callback: (payload: { username: string; isTyping: boolean }) => void) => {
-    socketRef.current?.on('chat:typing', callback)
+    sharedSocket?.on('chat-typing', callback)
   }
 
   const offChatTyping = (callback: (payload: { username: string; isTyping: boolean }) => void) => {
-    socketRef.current?.off('chat:typing', callback)
+    sharedSocket?.off('chat-typing', callback)
   }
 
   return {

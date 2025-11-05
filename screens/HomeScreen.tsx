@@ -1,29 +1,15 @@
 import React from 'react'
-import {
-  View,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  ListRenderItemInfo,
-  ActivityIndicator,
-  TouchableWithoutFeedback,
-} from 'react-native'
+import { View, StyleSheet, Text, TouchableOpacity, Modal, FlatList, ListRenderItemInfo, ActivityIndicator, TouchableWithoutFeedback, ScrollView } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { API_URL } from '@/config/constants'
-import { Task, ActiveSession, SessionType } from '@/types'
+import { Task } from '@/types'
+import { ActiveSessions } from '@/components/ActiveSessions'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-const formatTime = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
-    .toString()
-    .padStart(2, '0')}`
-}
+const TAB_BAR_HEIGHT = 60
 
 export default function HomeScreen() {
   const {
@@ -37,6 +23,13 @@ export default function HomeScreen() {
   const { user } = useAuthStore()
   const [taskModalVisible, setTaskModalVisible] = React.useState(false)
   const [isLoadingTasks, setIsLoadingTasks] = React.useState(false)
+  const insets = useSafeAreaInsets()
+
+  const bottomInset = React.useMemo(() => Math.max(insets.bottom, 16), [insets.bottom])
+  const listBottomPadding = React.useMemo(
+    () => TAB_BAR_HEIGHT + bottomInset,
+    [bottomInset]
+  )
 
   const loadTasks = React.useCallback(async () => {
     if (!user) {
@@ -137,13 +130,16 @@ export default function HomeScreen() {
     )
   }
 
-  const hasActiveSessions = activeSessions.length > 0
-  const visibleSessions = activeSessions.slice(0, 4)
-  const remainingSessions = Math.max(activeSessions.length - visibleSessions.length, 0)
-
   return (
     <View style={styles.screen}>
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: listBottomPadding, paddingTop: 16 },
+        ]}
+        showsVerticalScrollIndicator
+      >
         <View style={styles.timerSection}>
           <View style={styles.taskSelectorContainer}>
             <Text style={styles.sectionLabel}>My Tasks</Text>
@@ -165,36 +161,10 @@ export default function HomeScreen() {
           <PomodoroTimer onSessionComplete={handleSessionComplete} />
         </View>
 
-        <View style={styles.sessionsCard}>
-          <View style={styles.sessionsHeader}>
-            <Text style={[styles.sectionLabel, styles.sessionsTitle]}>Active Sessions</Text>
-          </View>
-          {hasActiveSessions ? (
-            <View style={styles.sessionsList}>
-              {visibleSessions.map((session) => (
-                <View key={session.id} style={styles.sessionPill}>
-                  <Text style={styles.sessionName}>{session.username}</Text>
-                  <Text style={styles.sessionTime}>
-                    {formatTime(session.timeRemaining)}
-                  </Text>
-                </View>
-              ))}
-              {remainingSessions > 0 && (
-                <View style={styles.sessionMorePill}>
-                  <Text style={styles.sessionMoreText}>+{remainingSessions}</Text>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.sessionsEmpty}>
-              <Text style={styles.sessionsEmptyTitle}>No active sessions yet</Text>
-              <Text style={styles.sessionsEmptySubtitle}>
-                Start a Pomodoro to appear here or invite teammates to join.
-              </Text>
-            </View>
-          )}
+        <View style={styles.sessionsWrapper}>
+          <ActiveSessions sessions={activeSessions} currentUserId={user?.id} />
         </View>
-      </View>
+      </ScrollView>
 
       <Modal
         visible={taskModalVisible}
@@ -237,15 +207,18 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    padding: 16,
   },
-  content: {
+  scroll: {
     flex: 1,
-    justifyContent: 'space-between',
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    gap: 16,
   },
   timerSection: {
     alignItems: 'center',
     gap: 16,
+    marginBottom: 16,
   },
   taskSelectorContainer: {
     width: '100%',
@@ -260,9 +233,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
     marginBottom: 10,
-  },
-  sessionsTitle: {
-    marginBottom: 0,
   },
   taskSelector: {
     flexDirection: 'row',
@@ -287,74 +257,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94a3b8',
   },
-  sessionsCard: {
-    marginTop: 16,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  sessionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sessionsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  sessionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  sessionName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  sessionTime: {
-    fontSize: 12,
-    color: '#ef4444',
-  },
-  sessionMorePill: {
-    backgroundColor: '#fee2e2',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  sessionMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#b91c1c',
-  },
-  sessionsEmpty: {
-    marginTop: 12,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    gap: 6,
-  },
-  sessionsEmptyTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  sessionsEmptySubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    color: '#64748b',
+  sessionsWrapper: {
+    marginBottom: 0,
   },
   modalOverlay: {
     flex: 1,
