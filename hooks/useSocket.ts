@@ -12,17 +12,23 @@ export const useSocket = () => {
   const { setActiveSessions } = useTimerStore()
 
   useEffect(() => {
+    console.log('[Socket] Initializing connection to', SOCKET_URL)
     const socket = io(SOCKET_URL, {
-      transports: ['websocket'],
+    transports: ['websocket'],
+      path: '/socket',
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      timeout: 5000,
+      autoConnect: true,
+      withCredentials: true
     })
+
 
     socketRef.current = socket
 
     socket.on('connect', () => {
-      console.log('Socket connected')
+      console.log('[Socket] Connected to server')
       setIsConnected(true)
       
       if (user) {
@@ -35,7 +41,7 @@ export const useSocket = () => {
     })
 
     socket.on('disconnect', () => {
-      console.log('Socket disconnected')
+      console.log('[Socket] Disconnected from server')
       setIsConnected(false)
     })
 
@@ -43,7 +49,20 @@ export const useSocket = () => {
       setActiveSessions(sessions)
     })
 
+    socket.on('connect_error', (error) => {
+      console.error('[Socket] Connection error:', error?.message || error)
+    })
+
+    socket.on('reconnect_attempt', (attempt) => {
+      console.log('[Socket] Reconnect attempt', attempt)
+    })
+
+    socket.on('reconnect_failed', () => {
+      console.error('[Socket] Reconnect failed – giving up')
+    })
+
     return () => {
+      console.log('[Socket] Cleaning up connection')
       socket.disconnect()
     }
   }, [user])

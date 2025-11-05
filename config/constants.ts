@@ -4,12 +4,12 @@
 // Backend API URL
 // For local development use your computer's IP address: http://192.168.1.x:3000
 // For production use your deployed backend URL: https://your-domain.com
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://pomo-co.work'
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.101:3000/'
 
 // Socket.IO Server URL
 // For local development use your computer's IP address: http://192.168.1.x:3001
 // For production use your deployed socket server URL: wss://your-domain.com
-export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'https://ws.pomo-co.work'
+export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'http://192.168.0.101:4000/'
 
 // App Configuration
 export const APP_CONFIG = {

@@ -25,59 +25,6 @@ const formatTime = (seconds: number): string => {
     .padStart(2, '0')}`
 }
 
-const MOCK_ACTIVE_SESSIONS: ActiveSession[] = [
-  {
-    id: 'mock-1',
-    userId: 'mock-1',
-    username: 'Alice',
-    task: 'Deep work sprint',
-    duration: 25,
-    timeRemaining: 17 * 60 + 32,
-    type: SessionType.WORK,
-    startedAt: new Date().toISOString(),
-  },
-  {
-    id: 'mock-2',
-    userId: 'mock-2',
-    username: 'Ben',
-    task: 'Design review prep',
-    duration: 25,
-    timeRemaining: 12 * 60 + 5,
-    type: SessionType.WORK,
-    startedAt: new Date().toISOString(),
-  },
-  {
-    id: 'mock-3',
-    userId: 'mock-3',
-    username: 'Chloe',
-    task: 'Writing summaries',
-    duration: 25,
-    timeRemaining: 4 * 60 + 41,
-    type: SessionType.WORK,
-    startedAt: new Date().toISOString(),
-  },
-  {
-    id: 'mock-4',
-    userId: 'mock-4',
-    username: 'Diego',
-    task: 'Break & stretch',
-    duration: 5,
-    timeRemaining: 2 * 60 + 10,
-    type: SessionType.SHORT_BREAK,
-    startedAt: new Date().toISOString(),
-  },
-  {
-    id: 'mock-5',
-    userId: 'mock-5',
-    username: 'Ella',
-    task: 'Next sprint planning',
-    duration: 25,
-    timeRemaining: 23 * 60 + 8,
-    type: SessionType.WORK,
-    startedAt: new Date().toISOString(),
-  },
-]
-
 export default function HomeScreen() {
   const {
     activeSessions,
@@ -191,9 +138,8 @@ export default function HomeScreen() {
   }
 
   const hasActiveSessions = activeSessions.length > 0
-  const sessionsToDisplay = hasActiveSessions ? activeSessions : MOCK_ACTIVE_SESSIONS
-  const visibleSessions = sessionsToDisplay.slice(0, 4)
-  const remainingSessions = Math.max(sessionsToDisplay.length - visibleSessions.length, 0)
+  const visibleSessions = activeSessions.slice(0, 4)
+  const remainingSessions = Math.max(activeSessions.length - visibleSessions.length, 0)
 
   return (
     <View style={styles.screen}>
@@ -222,31 +168,30 @@ export default function HomeScreen() {
         <View style={styles.sessionsCard}>
           <View style={styles.sessionsHeader}>
             <Text style={[styles.sectionLabel, styles.sessionsTitle]}>Active Sessions</Text>
-            {!hasActiveSessions && (
-              <View style={styles.mockBadge}>
-                <Text style={styles.mockBadgeText}>Preview</Text>
-              </View>
-            )}
           </View>
-          <View style={styles.sessionsList}>
-            {visibleSessions.map((session) => (
-              <View key={session.id} style={styles.sessionPill}>
-                <Text style={styles.sessionName}>{session.username}</Text>
-                <Text style={styles.sessionTime}>
-                  {formatTime(session.timeRemaining)}
-                </Text>
-              </View>
-            ))}
-            {remainingSessions > 0 && (
-              <View style={styles.sessionMorePill}>
-                <Text style={styles.sessionMoreText}>+{remainingSessions}</Text>
-              </View>
-            )}
-          </View>
-          {!hasActiveSessions && (
-            <Text style={styles.mockHint}>
-              These sample sessions show how coworkers will appear when live data is available.
-            </Text>
+          {hasActiveSessions ? (
+            <View style={styles.sessionsList}>
+              {visibleSessions.map((session) => (
+                <View key={session.id} style={styles.sessionPill}>
+                  <Text style={styles.sessionName}>{session.username}</Text>
+                  <Text style={styles.sessionTime}>
+                    {formatTime(session.timeRemaining)}
+                  </Text>
+                </View>
+              ))}
+              {remainingSessions > 0 && (
+                <View style={styles.sessionMorePill}>
+                  <Text style={styles.sessionMoreText}>+{remainingSessions}</Text>
+                </View>
+              )}
+            </View>
+          ) : (
+            <View style={styles.sessionsEmpty}>
+              <Text style={styles.sessionsEmptyTitle}>No active sessions yet</Text>
+              <Text style={styles.sessionsEmptySubtitle}>
+                Start a Pomodoro to appear here or invite teammates to join.
+              </Text>
+            </View>
           )}
         </View>
       </View>
@@ -305,19 +250,16 @@ const styles = StyleSheet.create({
   taskSelectorContainer: {
     width: '100%',
     backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 12,
+    color: '#475569',
+    marginBottom: 10,
   },
   sessionsTitle: {
     marginBottom: 0,
@@ -326,23 +268,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#ffffff',
   },
   taskSelectorDisabled: {
     opacity: 0.6,
   },
   taskSelectorText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1e293b',
   },
   taskSelectorCaret: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#94a3b8',
   },
   sessionsCard: {
@@ -396,21 +338,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#b91c1c',
   },
-  mockBadge: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  mockBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#b91c1c',
-  },
-  mockHint: {
+  sessionsEmpty: {
     marginTop: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  sessionsEmptyTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sessionsEmptySubtitle: {
     fontSize: 12,
-    color: '#94a3b8',
+    textAlign: 'center',
+    color: '#64748b',
   },
   modalOverlay: {
     flex: 1,

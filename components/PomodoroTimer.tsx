@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle } from 'react-native-svg'
@@ -27,10 +27,17 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     completeSession,
     cancelSession,
     tick,
+    previewSessionType,
   } = useTimerStore()
 
   const { user } = useAuthStore()
-  const { emitSessionStart, emitSessionSync, emitSessionEnd, emitTimerTick } = useSocket()
+  const {
+    emitSessionStart,
+    emitSessionSync,
+    emitSessionEnd,
+    emitTimerTick,
+    isConnected,
+  } = useSocket()
   const [sessionType, setSessionType] = useState<SessionType>(SessionType.WORK)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -57,6 +64,12 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
       handleSessionComplete()
     }
   }, [timeRemaining, currentSession])
+
+  useEffect(() => {
+    if (!currentSession) {
+      previewSessionType(sessionType)
+    }
+  }, [sessionType, currentSession, previewSessionType])
 
   const handleSessionComplete = async () => {
     if (!currentSession) return
@@ -220,11 +233,36 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
 
   const activeSessionType = currentSession?.type ?? sessionType
   const isPaused = currentSession?.status === SessionStatus.PAUSED
+  const cycleSessionType = useCallback(() => {
+    if (currentSession) return
+    setSessionType((prev) => {
+      switch (prev) {
+        case SessionType.WORK:
+          return SessionType.SHORT_BREAK
+        case SessionType.SHORT_BREAK:
+          return SessionType.LONG_BREAK
+        case SessionType.LONG_BREAK:
+        default:
+          return SessionType.WORK
+      }
+    })
+  }, [currentSession, setSessionType])
 
   return (
     <View style={styles.container}>
+      <View style={styles.connectionStatus}>
+        <View
+          style={[
+            styles.statusDot,
+            isConnected ? styles.statusDotOnline : styles.statusDotOffline,
+          ]}
+        />
+        <Text style={styles.statusText}>
+          {isConnected ? 'Online' : 'Offline'}
+        </Text>
+      </View>
       <View style={styles.timerContainer}>
-        <Svg width={280} height={280} viewBox="0 0 120 120">
+        <Svg width={220} height={220} viewBox="0 0 120 120">
           <Circle
             cx="60"
             cy="60"
@@ -261,60 +299,25 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
           ]}>
             {formatTime(timeRemaining)}
           </Text>
-          <Text style={styles.label}>
-            {getSessionTypeLabel(activeSessionType)}
-          </Text>
+          <TouchableOpacity
+            onPress={cycleSessionType}
+            activeOpacity={currentSession ? 1 : 0.7}
+            disabled={!!currentSession}
+            style={[
+              styles.labelButton,
+              currentSession && styles.labelButtonDisabled,
+            ]}
+          >
+            <Text style={[
+              styles.label,
+              activeSessionType === SessionType.SHORT_BREAK && styles.labelShortBreak,
+              activeSessionType === SessionType.LONG_BREAK && styles.labelLongBreak,
+            ]}>
+              {getSessionTypeLabel(activeSessionType)}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
-
-      {!currentSession && (
-        <View style={styles.sessionTypeButtons}>
-          <TouchableOpacity
-            style={[
-              styles.sessionTypeButton,
-              sessionType === SessionType.WORK && styles.sessionTypeButtonActive,
-            ]}
-            onPress={() => setSessionType(SessionType.WORK)}
-          >
-            <Text style={[
-              styles.sessionTypeButtonText,
-              sessionType === SessionType.WORK && styles.sessionTypeButtonTextActive,
-            ]}>
-              Work
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sessionTypeButton,
-              sessionType === SessionType.SHORT_BREAK && styles.sessionTypeButtonActive,
-            ]}
-            onPress={() => setSessionType(SessionType.SHORT_BREAK)}
-          >
-            <Text style={[
-              styles.sessionTypeButtonText,
-              sessionType === SessionType.SHORT_BREAK && styles.sessionTypeButtonTextActive,
-            ]}>
-              Short Break
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.sessionTypeButton,
-              sessionType === SessionType.LONG_BREAK && styles.sessionTypeButtonActive,
-            ]}
-            onPress={() => setSessionType(SessionType.LONG_BREAK)}
-          >
-            <Text style={[
-              styles.sessionTypeButtonText,
-              sessionType === SessionType.LONG_BREAK && styles.sessionTypeButtonTextActive,
-            ]}>
-              Long Break
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <View style={styles.controls}>
         {!currentSession ? (
@@ -346,28 +349,53 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
+    width: '100%',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 1,
+  },
+  connectionStatus: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginBottom: 4,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 6,
+  },
+  statusDotOnline: {
+    backgroundColor: '#22c55e',
+  },
+  statusDotOffline: {
+    backgroundColor: '#ef4444',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
   },
   timerContainer: {
     position: 'relative',
-    width: 280,
-    height: 280,
+    width: 220,
+    height: 220,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   timerContent: {
     position: 'absolute',
     alignItems: 'center',
   },
   time: {
-    fontSize: 48,
+    fontSize: 42,
     fontWeight: 'bold',
     marginBottom: 8,
   },
@@ -380,35 +408,33 @@ const styles = StyleSheet.create({
   timeLongBreak: {
     color: '#3b82f6',
   },
+  labelButton: {
+    marginTop: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: '#f8fafc',
+  },
+  labelButtonDisabled: {
+    opacity: 0.6,
+  },
   label: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  sessionTypeButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24,
-  },
-  sessionTypeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-  },
-  sessionTypeButtonActive: {
-    backgroundColor: '#ef4444',
-  },
-  sessionTypeButtonText: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#6b7280',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  sessionTypeButtonTextActive: {
-    color: '#fff',
+  labelShortBreak: {
+    color: '#16a34a',
+  },
+  labelLongBreak: {
+    color: '#2563eb',
   },
   controls: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 16,
   },
   startButton: {
     backgroundColor: '#ef4444',
