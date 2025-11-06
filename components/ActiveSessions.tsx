@@ -101,20 +101,36 @@ function SessionCard({ session, isCurrentUser }: SessionCardProps) {
     }
 
     const updateTime = () => {
+      const now = Date.now()
       if (!session.startedAt) {
-        setTimeRemaining(storedRemainingSeconds)
+        const explicitRemaining =
+          typeof session.timeRemaining === 'number'
+            ? Math.floor(session.timeRemaining)
+            : storedRemainingSeconds
+        setTimeRemaining(Math.max(0, explicitRemaining))
         return
       }
 
       const startTime = new Date(session.startedAt).getTime()
       if (Number.isNaN(startTime)) {
-        setTimeRemaining(storedRemainingSeconds)
+        const explicitRemaining =
+          typeof session.timeRemaining === 'number'
+            ? Math.floor(session.timeRemaining)
+            : storedRemainingSeconds
+        setTimeRemaining(Math.max(0, explicitRemaining))
         return
       }
 
-      const now = Date.now()
       const elapsed = Math.floor((now - startTime) / 1000)
-      setTimeRemaining(Math.max(0, fallbackDurationSeconds - elapsed))
+      const fallbackRemaining = Math.max(0, fallbackDurationSeconds - elapsed)
+
+      if (typeof session.timeRemaining === 'number') {
+        const syncedRemaining = Math.max(0, Math.floor(session.timeRemaining))
+        setTimeRemaining(Math.min(fallbackRemaining, syncedRemaining))
+        return
+      }
+
+      setTimeRemaining(fallbackRemaining)
     }
 
     updateTime()

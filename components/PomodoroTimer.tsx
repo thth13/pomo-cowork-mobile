@@ -284,10 +284,16 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
           throw new Error('Server response missing session id')
         }
 
+        const elapsedSeconds = Math.max(
+          0,
+          Math.floor((Date.now() - new Date(persistedStartedAt).getTime()) / 1000)
+        )
+        const syncedRemaining = Math.max(0, duration * 60 - elapsedSeconds)
+
         updateCurrentSession(tempId, {
           id: newSessionId,
           startedAt: persistedStartedAt,
-          timeRemaining: duration * 60,
+          timeRemaining: syncedRemaining,
         })
 
         sendMessageToServiceWorker({
@@ -296,6 +302,8 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             oldSessionId: tempId,
             newSessionId,
             startedAt: persistedStartedAt,
+            duration,
+            timeRemaining: syncedRemaining,
           },
         })
 
@@ -307,7 +315,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
           userId: user?.id,
           username: user?.username,
           avatarUrl: user?.avatarUrl,
-          timeRemaining: duration * 60,
+          timeRemaining: syncedRemaining,
           startedAt: persistedStartedAt,
           status: SessionStatus.ACTIVE,
         }

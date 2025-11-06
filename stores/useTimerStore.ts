@@ -113,7 +113,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
   },
 
   pauseSession: () => {
-    const { currentSession, timeRemaining } = get()
+    const { currentSession, timeRemaining, activeSessions } = get()
     if (currentSession) {
       set({
         isRunning: false,
@@ -123,12 +123,17 @@ export const useTimerStore = create<TimerState>((set, get) => ({
           status: SessionStatus.PAUSED,
           timeRemaining,
         },
+        activeSessions: activeSessions.map((session) =>
+          session.id === currentSession.id
+            ? { ...session, status: SessionStatus.PAUSED, timeRemaining }
+            : session
+        ),
       })
     }
   },
 
   resumeSession: () => {
-    const { currentSession, pausedAt, timeRemaining } = get()
+    const { currentSession, pausedAt, timeRemaining, activeSessions } = get()
     if (currentSession && pausedAt) {
       const pauseDuration = Date.now() - pausedAt
       const newStartedAt = new Date(new Date(currentSession.startedAt).getTime() + pauseDuration).toISOString()
@@ -142,12 +147,22 @@ export const useTimerStore = create<TimerState>((set, get) => ({
           startedAt: newStartedAt,
           timeRemaining,
         },
+        activeSessions: activeSessions.map((session) =>
+          session.id === currentSession.id
+            ? {
+                ...session,
+                status: SessionStatus.ACTIVE,
+                startedAt: newStartedAt,
+                timeRemaining,
+              }
+            : session
+        ),
       })
     }
   },
 
   completeSession: () => {
-    const { currentSession, completedSessions } = get()
+    const { currentSession, completedSessions, activeSessions } = get()
     
     if (currentSession) {
       const nextType = getNextSessionType(completedSessions + 1, get().longBreakAfter)
@@ -159,6 +174,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
         completedSessions: completedSessions + 1,
         timeRemaining: nextDuration * 60,
         pausedAt: null,
+        activeSessions: activeSessions.filter((session) => session.id !== currentSession.id),
       })
     }
   },
@@ -173,15 +189,40 @@ export const useTimerStore = create<TimerState>((set, get) => ({
         currentSession: null,
         timeRemaining: fallbackDuration * 60,
         pausedAt: null,
+        activeSessions: state.activeSessions.filter((session) => session.id !== currentSession.id),
       })
     }
   },
 
   tick: () => {
-    const { isRunning, timeRemaining } = get()
-    if (isRunning && timeRemaining > 0) {
-      set({ timeRemaining: timeRemaining - 1 })
+    const state = get()
+    if (!state.isRunning) {
+      return
     }
+
+    const nextRemaining = Math.max(0, state.timeRemaining - 1)
+    const updates: Partial<TimerState> = {
+      timeRemaining: nextRemaining,
+    }
+
+    if (state.currentSession) {
+      const sessionId = state.currentSession.id
+      updates.currentSession = {
+        ...state.currentSession,
+        timeRemaining: nextRemaining,
+      }
+
+      if (
+        state.activeSessions.length > 0 &&
+        state.activeSessions.some((session) => session.id === sessionId)
+      ) {
+        updates.activeSessions = state.activeSessions.map((session) =>
+          session.id === sessionId ? { ...session, timeRemaining: nextRemaining } : session
+        )
+      }
+    }
+
+    set(updates)
   },
 
   setActiveSessions: (sessions: ActiveSession[]) => {
@@ -199,7 +240,8 @@ export const useTimerStore = create<TimerState>((set, get) => ({
   },
 
   updateCurrentSession: (sessionId, updates) => {
-    const { currentSession } = get()
+    const state = get()
+    const { currentSession, activeSessions } = state
 
     if (!currentSession || currentSession.id !== sessionId) {
       return
@@ -216,6 +258,23 @@ export const useTimerStore = create<TimerState>((set, get) => ({
 
     if (typeof updates.timeRemaining === 'number') {
       nextState.timeRemaining = updates.timeRemaining
+    }
+
+    if (activeSessions.length > 0) {
+      const targetIds = new Set<string>([sessionId])
+      if (typeof updates.id === 'string') {
+        targetIds.add(updates.id)
+      }
+
+      nextState.activeSessions = activeSessions.map((session) => {
+        if (targetIds.has(session.id)) {
+          return {
+            ...session,
+            ...updates,
+          }
+        }
+        return session
+      })
     }
 
     set(nextState)
