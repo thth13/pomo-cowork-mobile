@@ -1,14 +1,14 @@
 import React from 'react'
-import { View, Text, ScrollView, StyleSheet } from 'react-native'
+import { StyleSheet, View } from 'react-native'
+import Chat from '@/components/Chat'
 
 export default function UsersScreen() {
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Online Users</Text>
-        <Text style={styles.subtitle}>Coming soon...</Text>
+        <Chat />
       </View>
-    </ScrollView>
+    </View>
   )
 }
 
@@ -18,16 +18,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   content: {
+    flex: 1,
     padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
+    justifyContent: 'flex-start',
   },
 })

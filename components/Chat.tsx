@@ -100,28 +100,55 @@ export default function Chat() {
     }
   }
 
+  const renderAvatar = (message: ChatMessage) => {
+    if (message.avatarUrl) {
+      return <Image source={{ uri: message.avatarUrl }} style={styles.avatar} />
+    }
+
+    return (
+      <View style={styles.avatarPlaceholder}>
+        <Text style={styles.avatarText}>
+          {message.username.charAt(0).toUpperCase()}
+        </Text>
+      </View>
+    )
+  }
+
   const renderMessage = ({ item }: { item: ChatMessage }) => {
     if (item.type === 'system') {
+      if (item.action?.type !== 'work_start') {
+        return null
+      }
+      const actionTime = new Date(item.timestamp).toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const taskLabel = item.action?.task?.trim()
+      const durationText = item.action?.duration ? ` for ${item.action.duration} min` : ''
+
       return (
         <View style={styles.systemMessage}>
-          <Text style={styles.systemMessageText}>
-            {item.username} {item.text}
-          </Text>
+          {renderAvatar(item)}
+          <View style={styles.messageContent}>
+            <View style={styles.messageHeader}>
+              <Text style={styles.username}>{item.username}</Text>
+              <Text style={styles.timestamp}>{actionTime}</Text>
+            </View>
+            <Text style={styles.systemActionText}>
+              started a{' '}
+              <Text style={styles.systemActionTask}>
+                {taskLabel || 'focus'}
+              </Text>{' '}
+              session{durationText}
+            </Text>
+          </View>
         </View>
       )
     }
 
     return (
       <View style={styles.message}>
-        {item.avatarUrl ? (
-          <Image source={{ uri: item.avatarUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
-              {item.username.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        {renderAvatar(item)}
         <View style={styles.messageContent}>
           <View style={styles.messageHeader}>
             <Text style={styles.username}>{item.username}</Text>
@@ -190,10 +217,10 @@ export default function Chat() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    height: 400,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -230,16 +257,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   systemMessage: {
-    alignItems: 'center',
-    marginVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
-  systemMessageText: {
-    fontSize: 12,
-    color: '#6b7280',
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+  systemActionText: {
+    fontSize: 14,
+    color: '#dc2626',
+    fontWeight: '600',
+  },
+  systemActionTask: {
+    fontWeight: '700',
   },
   avatar: {
     width: 32,

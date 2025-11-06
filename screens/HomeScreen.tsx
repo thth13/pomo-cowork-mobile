@@ -8,6 +8,7 @@ import { API_URL } from '@/config/constants'
 import { Task } from '@/types'
 import { ActiveSessions } from '@/components/ActiveSessions'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import TaskList, { TaskListRef } from '@/components/TaskList'
 
 const TAB_BAR_HEIGHT = 60
 
@@ -24,6 +25,7 @@ export default function HomeScreen() {
   const [taskModalVisible, setTaskModalVisible] = React.useState(false)
   const [isLoadingTasks, setIsLoadingTasks] = React.useState(false)
   const insets = useSafeAreaInsets()
+  const taskListRef = React.useRef<TaskListRef>(null)
 
   const bottomInset = React.useMemo(() => Math.max(insets.bottom, 16), [insets.bottom])
   const listBottomPadding = React.useMemo(
@@ -92,6 +94,7 @@ export default function HomeScreen() {
 
   const handleSessionComplete = React.useCallback(async () => {
     await loadTasks()
+    await taskListRef.current?.refreshTasks()
   }, [loadTasks])
 
   const handleOpenTaskModal = () => {
@@ -163,6 +166,10 @@ export default function HomeScreen() {
 
         <View style={styles.sessionsWrapper}>
           <ActiveSessions sessions={activeSessions} currentUserId={user?.id} />
+        </View>
+
+        <View style={styles.taskListWrapper}>
+          <TaskList ref={taskListRef} />
         </View>
       </ScrollView>
 
@@ -259,6 +266,9 @@ const styles = StyleSheet.create({
   },
   sessionsWrapper: {
     marginBottom: 0,
+  },
+  taskListWrapper: {
+    width: '100%',
   },
   modalOverlay: {
     flex: 1,
