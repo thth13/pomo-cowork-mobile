@@ -60,15 +60,23 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const {
     emitSessionStart,
     emitSessionSync,
+    emitSessionPause,
     emitSessionEnd,
     emitTimerTick,
     isConnected,
   } = useSocket()
   const [sessionType, setSessionType] = useState<SessionType>(SessionType.WORK)
   const [isStarting, setIsStarting] = useState(false)
+  const [isPausing, setIsPausing] = useState(false)
+  const [isResuming, setIsResuming] = useState(false)
   const startRequestIdRef = useRef<string | null>(null)
   const lastStartAtRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  const canTriggerAction = useCallback(
+    () => !isStarting && !isPausing && !isResuming,
+    [isStarting, isPausing, isResuming]
+  )
 
   useEffect(() => {
     const settings = user?.settings
@@ -334,25 +342,262 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     })()
   }
 
-  const handlePause = () => {
-    pauseSession()
-    if (currentSession) {
+  const handlePause = useCallback(async () => {
+    if (!currentSession || currentSession.status === SessionStatus.PAUSED) {
+      return
+    }
+
+    if (isPausing || !canTriggerAction()) {
+      return
+    }
+
+    setIsPausing(true)
+
+    const sessionSnapshot = currentSession
+    const sessionId = sessionSnapshot.id
+    const currentTimeRemaining = useTimerStore.getState().timeRemaining
+    const username = user?.username ?? 'Guest'
+    const avatarUrl = user?.avatarUrl ?? null
+
+    let resolvedAnonymousId = anonymousId
+    if (!user?.id) {
+      resolvedAnonymousId = resolvedAnonymousId ?? (await ensureAnonymousId())
+    }
+
+    const syncUserId = user?.id ?? resolvedAnonymousId ?? 'anonymous'
+
+    try {
+      pauseSession()
+
+      sendMessageToServiceWorker({
+        type: 'PAUSE_TIMER',
+      })
+
+      emitSessionPause(sessionId)
+
+      const pausedSession = useTimerStore.getState().currentSession
+      const startedAt = pausedSession?.startedAt ?? sessionSnapshot.startedAt
+
       emitSessionSync({
-        ...currentSession,
+        id: sessionId,
+        task: sessionSnapshot.task,
+        duration: sessionSnapshot.duration,
+        type: sessionSnapshot.type,
+        userId: syncUserId,
+        username,
+        avatarUrl,
+        timeRemaining: currentTimeRemaining,
+        startedAt,
         status: SessionStatus.PAUSED,
       })
-    }
-  }
 
-  const handleResume = () => {
-    resumeSession()
-    if (currentSession) {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const body: Record<string, unknown> = {
+        status: SessionStatus.PAUSED,
+        pausedAt: new Date().toISOString(),
+        timeRemaining: currentTimeRemaining,
+      }
+
+      if (!token && resolvedAnonymousId) {
+        body.anonymousId = resolvedAnonymousId
+      }
+
+      const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const errorMessage = await response.text().catch(() => null)
+        throw new Error(errorMessage || 'Failed to pause session')
+      }
+
+      void mutateSessions()
+    } catch (error) {
+      console.error('Failed to pause session:', error)
+      resumeSession()
+
+      const resumedSession = useTimerStore.getState().currentSession
+      const resumedStartedAt = resumedSession?.startedAt ?? sessionSnapshot.startedAt
+
+      sendMessageToServiceWorker({
+        type: 'RESUME_TIMER',
+        payload: {
+          timeRemaining: currentTimeRemaining,
+          startedAt: resumedStartedAt,
+        },
+      })
+
       emitSessionSync({
-        ...currentSession,
+        id: sessionId,
+        task: sessionSnapshot.task,
+        duration: sessionSnapshot.duration,
+        type: sessionSnapshot.type,
+        userId: syncUserId,
+        username,
+        avatarUrl,
+        timeRemaining: currentTimeRemaining,
+        startedAt: resumedStartedAt,
         status: SessionStatus.ACTIVE,
       })
+    } finally {
+      setTimeout(() => {
+        setIsPausing(false)
+      }, 300)
     }
-  }
+  }, [
+    anonymousId,
+    canTriggerAction,
+    currentSession,
+    ensureAnonymousId,
+    emitSessionPause,
+    emitSessionSync,
+    isPausing,
+    pauseSession,
+    resumeSession,
+    token,
+    user?.avatarUrl,
+    user?.id,
+    user?.username,
+    mutateSessions,
+  ])
+
+  const handleResume = useCallback(async () => {
+    if (!currentSession || currentSession.status !== SessionStatus.PAUSED) {
+      return
+    }
+
+    if (isResuming || !canTriggerAction()) {
+      return
+    }
+
+    setIsResuming(true)
+
+    const sessionSnapshot = currentSession
+    const sessionId = sessionSnapshot.id
+    const currentTimeRemaining = useTimerStore.getState().timeRemaining
+    const username = user?.username ?? 'Guest'
+    const avatarUrl = user?.avatarUrl ?? null
+
+    let resolvedAnonymousId = anonymousId
+    if (!user?.id) {
+      resolvedAnonymousId = resolvedAnonymousId ?? (await ensureAnonymousId())
+    }
+
+    const syncUserId = user?.id ?? resolvedAnonymousId ?? 'anonymous'
+
+    try {
+      resumeSession()
+
+      const resumedSession = useTimerStore.getState().currentSession
+      const resumedStartedAt = resumedSession?.startedAt ?? new Date().toISOString()
+
+      sendMessageToServiceWorker({
+        type: 'RESUME_TIMER',
+        payload: {
+          timeRemaining: currentTimeRemaining,
+          startedAt: resumedStartedAt,
+        },
+      })
+
+      emitSessionSync({
+        id: sessionId,
+        task: sessionSnapshot.task,
+        duration: sessionSnapshot.duration,
+        type: sessionSnapshot.type,
+        userId: syncUserId,
+        username,
+        avatarUrl,
+        timeRemaining: currentTimeRemaining,
+        startedAt: resumedStartedAt,
+        status: SessionStatus.ACTIVE,
+      })
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      const body: Record<string, unknown> = {
+        status: SessionStatus.ACTIVE,
+        pausedAt: null,
+        timeRemaining: currentTimeRemaining,
+        startedAt: resumedStartedAt,
+      }
+
+      if (!token && resolvedAnonymousId) {
+        body.anonymousId = resolvedAnonymousId
+      }
+
+      const response = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      })
+
+      if (!response.ok) {
+        const errorMessage = await response.text().catch(() => null)
+        throw new Error(errorMessage || 'Failed to resume session')
+      }
+
+      void mutateSessions()
+    } catch (error) {
+      console.error('Failed to resume session:', error)
+
+      pauseSession()
+      sendMessageToServiceWorker({
+        type: 'PAUSE_TIMER',
+      })
+
+      const pausedSession = useTimerStore.getState().currentSession
+      const pausedStartedAt = pausedSession?.startedAt ?? sessionSnapshot.startedAt
+
+      emitSessionPause(sessionId)
+
+      emitSessionSync({
+        id: sessionId,
+        task: sessionSnapshot.task,
+        duration: sessionSnapshot.duration,
+        type: sessionSnapshot.type,
+        userId: syncUserId,
+        username,
+        avatarUrl,
+        timeRemaining: currentTimeRemaining,
+        startedAt: pausedStartedAt,
+        status: SessionStatus.PAUSED,
+      })
+    } finally {
+      setTimeout(() => {
+        setIsResuming(false)
+      }, 300)
+    }
+  }, [
+    anonymousId,
+    canTriggerAction,
+    currentSession,
+    ensureAnonymousId,
+    emitSessionPause,
+    emitSessionSync,
+    isResuming,
+    pauseSession,
+    resumeSession,
+    token,
+    user?.avatarUrl,
+    user?.id,
+    user?.username,
+    mutateSessions,
+  ])
 
   const handleStop = async () => {
     if (currentSession) {
@@ -447,6 +692,8 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     })
   }, [currentSession, setSessionType])
 
+  const actionsLocked = !canTriggerAction()
+
   return (
     <View style={styles.container}>
       <View style={styles.connectionStatus}>
@@ -526,15 +773,36 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
         ) : (
           <>
             {isPaused ? (
-              <TouchableOpacity style={styles.resumeButton} onPress={handleResume}>
+              <TouchableOpacity
+                style={[
+                  styles.resumeButton,
+                  (isResuming || actionsLocked) && styles.buttonDisabled,
+                ]}
+                onPress={handleResume}
+                disabled={isResuming || actionsLocked}
+              >
                 <Text style={styles.buttonText}>Resume</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.pauseButton} onPress={handlePause}>
+              <TouchableOpacity
+                style={[
+                  styles.pauseButton,
+                  (isPausing || actionsLocked) && styles.buttonDisabled,
+                ]}
+                onPress={handlePause}
+                disabled={isPausing || actionsLocked}
+              >
                 <Text style={styles.buttonText}>Pause</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.stopButton} onPress={handleStop}>
+            <TouchableOpacity
+              style={[
+                styles.stopButton,
+                (isPausing || isResuming) && styles.buttonDisabled,
+              ]}
+              onPress={handleStop}
+              disabled={isPausing || isResuming}
+            >
               <Text style={styles.buttonText}>Stop</Text>
             </TouchableOpacity>
           </>
@@ -668,5 +936,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 })
