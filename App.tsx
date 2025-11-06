@@ -9,7 +9,7 @@ import { useAuthStore } from './stores/useAuthStore'
 // Screens
 import HomeScreen from './screens/HomeScreen'
 import ProfileScreen from './screens/ProfileScreen'
-import StatsScreen from './screens/StatsScreen'
+import SettingsScreen from './screens/SettingsScreen'
 import UsersScreen from './screens/UsersScreen'
 import { Feather } from '@expo/vector-icons'
 
@@ -69,12 +69,12 @@ function AppTabs() {
           }}
         />
         <Tab.Screen 
-          name="WorkHistory" 
-          component={StatsScreen}
+          name="Settings" 
+          component={SettingsScreen}
           options={{
-            title: 'Work History',
+            title: 'Settings',
             tabBarIcon: ({ color, focused }) => (
-              <TabIcon name="workHistory" color={color} focused={focused} />
+              <TabIcon name="settings" color={color} focused={focused} />
             ),
           }}
         />
@@ -116,13 +116,13 @@ export default function App() {
   )
 }
 
-type TabIconName = 'pomodoro' | 'chat' | 'workHistory' | 'profile'
+type TabIconName = 'pomodoro' | 'chat' | 'settings' | 'profile'
 type FeatherIconName = React.ComponentProps<typeof Feather>['name']
 
 const TAB_ICON_MAP: Record<TabIconName, FeatherIconName> = {
   pomodoro: 'clock',
   chat: 'message-circle',
-  workHistory: 'briefcase',
+  settings: 'settings',
   profile: 'user',
 }
 

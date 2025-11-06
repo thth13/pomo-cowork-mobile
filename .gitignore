@@ -43,3 +43,5 @@ build/
 *.apk
 *.aab
 *.ipa
+
+docs/

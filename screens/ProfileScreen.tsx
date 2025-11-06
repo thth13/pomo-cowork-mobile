@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, TextInput } from 'react-native'
+import React, { useState } from 'react'
+import { View, Text, ScrollView, StyleSheet, Image, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native'
 import { useAuthStore } from '@/stores/useAuthStore'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Feather } from '@expo/vector-icons'
 
 export default function ProfileScreen() {
-  const { user, isAuthenticated, logout } = useAuthStore()
+  const { user, isAuthenticated, logout, login, register } = useAuthStore()
   const [isEditing, setIsEditing] = useState(false)
   const [description, setDescription] = useState(user?.description || '')
+  const [isLogin, setIsLogin] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
+  const [formData, setFormData] = useState({
+    email: '',
+    username: '',
+    password: '',
+  })
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -17,11 +26,221 @@ export default function ProfileScreen() {
     setIsEditing(false)
   }
 
+  const handleAuthChange = (field: 'email' | 'username' | 'password') => (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+    if (error) {
+      setError('')
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      email: '',
+      username: '',
+      password: '',
+    })
+    setShowPassword(false)
+  }
+
+  const handleAuthSubmit = async () => {
+    if (isLoading) {
+      return
+    }
+
+    setError('')
+    setIsLoading(true)
+
+    try {
+      let success = false
+
+      if (isLogin) {
+        success = await login(formData.email.trim(), formData.password)
+        if (!success) {
+          setError('Invalid email or password')
+        }
+      } else {
+        if (!formData.username.trim()) {
+          setError('Username is required')
+          setIsLoading(false)
+          return
+        }
+
+        success = await register(
+          formData.email.trim(),
+          formData.username.trim(),
+          formData.password,
+        )
+
+        if (!success) {
+          setError('Registration error. Please try again.')
+        }
+      }
+
+      if (success) {
+        resetForm()
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const toggleAuthMode = () => {
+    setIsLogin((prev) => !prev)
+    setError('')
+    resetForm()
+  }
+
   if (!isAuthenticated || !user) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Please login to view profile</Text>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.authContainer}
+        behavior={Platform.select({ ios: 'padding', android: undefined })}
+      >
+        <ScrollView
+          contentContainerStyle={styles.authContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.authCard}>
+            <Text style={styles.authTitle}>{isLogin ? 'Login' : 'Registration'}</Text>
+
+            <View style={styles.authToggle}>
+              <TouchableOpacity
+                style={[styles.toggleButton, isLogin && styles.toggleButtonActive]}
+                onPress={() => {
+                  if (!isLogin) toggleAuthMode()
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.toggleButtonText,
+                    isLogin && styles.toggleButtonTextActive,
+                  ]}
+                >
+                  Login
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleButton, !isLogin && styles.toggleButtonActive]}
+                onPress={() => {
+                  if (isLogin) toggleAuthMode()
+                }}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.toggleButtonText,
+                    !isLogin && styles.toggleButtonTextActive,
+                  ]}
+                >
+                  Register
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formField}>
+              <Text style={styles.label}>Email</Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="mail" size={20} color="#94a3b8" style={styles.authInputIcon} />
+                <TextInput
+                  value={formData.email}
+                  onChangeText={handleAuthChange('email')}
+                  style={[styles.authInput, styles.authInputWithIcon]}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  returnKeyType="next"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+
+            {!isLogin && (
+              <View style={styles.formField}>
+                <Text style={styles.label}>Username</Text>
+                <View style={styles.inputWrapper}>
+                  <Feather name="user" size={20} color="#94a3b8" style={styles.authInputIcon} />
+                  <TextInput
+                    value={formData.username}
+                    onChangeText={handleAuthChange('username')}
+                    style={[styles.authInput, styles.authInputWithIcon]}
+                    placeholder="Your name"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    textContentType="name"
+                    returnKeyType="next"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+            )}
+
+            <View style={styles.formField}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Feather name="lock" size={20} color="#94a3b8" style={styles.authInputIcon} />
+                <TextInput
+                  value={formData.password}
+                  onChangeText={handleAuthChange('password')}
+                  style={[styles.authInput, styles.authInputWithIcon, styles.authPasswordInput]}
+                  placeholder="Your password"
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoComplete="password"
+                  textContentType="password"
+                  returnKeyType="done"
+                  onSubmitEditing={handleAuthSubmit}
+                  editable={!isLoading}
+                />
+                <TouchableOpacity
+                  style={styles.authPasswordToggle}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Feather
+                    name={showPassword ? 'eye-off' : 'eye'}
+                    size={20}
+                    color="#94a3b8"
+                  />
+                </TouchableOpacity>
+              </View>
+              {!isLogin && (
+                <Text style={styles.passwordHint}>Minimum 6 characters</Text>
+              )}
+            </View>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+              onPress={handleAuthSubmit}
+              disabled={isLoading}
+              activeOpacity={0.8}
+            >
+              {isLoading ? (
+                <View style={styles.loadingContent}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                  <Text style={[styles.submitButtonText, styles.loadingText]}>Loading...</Text>
+                </View>
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {isLogin ? 'Login' : 'Register'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     )
   }
 
@@ -47,7 +266,7 @@ export default function ProfileScreen() {
           {isEditing ? (
             <>
               <TextInput
-                style={styles.input}
+                style={styles.profileInput}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -92,14 +311,137 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
+  authContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  authContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  authCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  authTitle: {
+    fontSize: 28,
+    fontWeight: '700',
     color: '#1f2937',
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  authToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  toggleButtonTextActive: {
+    color: '#ef4444',
+  },
+  formField: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
   },
   content: {
     padding: 16,
+  },
+  authInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  authInputWithIcon: {
+    paddingLeft: 44,
+  },
+  authPasswordInput: {
+    paddingRight: 44,
+  },
+  authInputIcon: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 1,
+  },
+  authPasswordToggle: {
+    position: 'absolute',
+    right: 16,
+    padding: 4,
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 6,
+  },
+  errorText: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 12,
+    padding: 12,
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
+  submitButton: {
+    backgroundColor: '#ef4444',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  loadingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginLeft: 8,
   },
   header: {
     alignItems: 'center',
@@ -149,7 +491,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 12,
   },
-  input: {
+  profileInput: {
     backgroundColor: '#f9fafb',
     borderRadius: 8,
     padding: 12,
