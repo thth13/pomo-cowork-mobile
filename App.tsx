@@ -5,6 +5,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from './stores/useAuthStore'
+import { useTimerStore } from './stores/useTimerStore'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // Screens
 import HomeScreen from './screens/HomeScreen'
@@ -95,10 +97,70 @@ function AppTabs() {
 
 export default function App() {
   const { checkAuth, isLoading } = useAuthStore()
+  const { setTimerSettings, setAutoStartNextSession } = useTimerStore((state) => ({
+    setTimerSettings: state.setTimerSettings,
+    setAutoStartNextSession: state.setAutoStartNextSession,
+  }))
+  const timerSettingsHydratedRef = React.useRef(false)
 
   useEffect(() => {
     checkAuth()
   }, [])
+
+  useEffect(() => {
+    if (timerSettingsHydratedRef.current) {
+      return
+    }
+
+    const hydrateTimerSettings = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('timer_settings')
+        if (!stored) {
+          return
+        }
+
+        const parsed = JSON.parse(stored) as {
+          workDuration?: unknown
+          shortBreak?: unknown
+          longBreak?: unknown
+          longBreakAfter?: unknown
+          autoStartNextSession?: unknown
+        }
+
+        const entries: Array<[keyof typeof parsed, unknown]> = [
+          ['workDuration', parsed.workDuration],
+          ['shortBreak', parsed.shortBreak],
+          ['longBreak', parsed.longBreak],
+          ['longBreakAfter', parsed.longBreakAfter],
+        ]
+
+        const hasInvalid = entries.some(([, value]) => {
+          return typeof value !== 'number' || !Number.isFinite(value) || value < 1
+        })
+
+        if (hasInvalid) {
+          return
+        }
+
+        setTimerSettings({
+          workDuration: parsed.workDuration as number,
+          shortBreak: parsed.shortBreak as number,
+          longBreak: parsed.longBreak as number,
+          longBreakAfter: parsed.longBreakAfter as number,
+        })
+
+        if (typeof parsed.autoStartNextSession === 'boolean') {
+          setAutoStartNextSession(parsed.autoStartNextSession)
+        }
+      } catch (error) {
+        console.warn('Failed to hydrate timer settings', error)
+      } finally {
+        timerSettingsHydratedRef.current = true
+      }
+    }
+
+    hydrateTimerSettings()
+  }, [setTimerSettings, setAutoStartNextSession])
 
   if (isLoading) {
     return null // Or a loading screen

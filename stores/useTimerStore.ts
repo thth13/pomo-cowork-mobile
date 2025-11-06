@@ -40,6 +40,7 @@ interface TimerState {
   shortBreak: number
   longBreak: number
   longBreakAfter: number
+  autoStartNextSession: boolean
   setTimerSettings: (settings: {
     workDuration: number
     shortBreak: number
@@ -52,6 +53,7 @@ interface TimerState {
     longBreak: number
     longBreakAfter: number
   }) => void
+  setAutoStartNextSession: (enabled: boolean) => void
 }
 
 export const useTimerStore = create<TimerState>((set, get) => ({
@@ -68,6 +70,7 @@ export const useTimerStore = create<TimerState>((set, get) => ({
   shortBreak: 5,
   longBreak: 15,
   longBreakAfter: 4,
+  autoStartNextSession: false,
 
   startSession: (task: string, duration: number, type: SessionType, sessionId?: string) => {
     const session: PomodoroSession = {
@@ -232,12 +235,43 @@ export const useTimerStore = create<TimerState>((set, get) => ({
   },
 
   setTimerSettings: (settings) => {
-    set({
+    const state = get()
+    const updates: Partial<TimerState> = {
       workDuration: settings.workDuration,
       shortBreak: settings.shortBreak,
       longBreak: settings.longBreak,
       longBreakAfter: settings.longBreakAfter,
-    })
+    }
+
+    const shouldResetTime =
+      !state.isRunning &&
+      (!state.currentSession ||
+        state.currentSession.status !== SessionStatus.ACTIVE)
+
+    if (shouldResetTime) {
+      updates.timeRemaining = settings.workDuration * 60
+    } else if (state.currentSession) {
+      const currentType = state.currentSession.type
+      const newDuration = getSessionDuration(currentType, {
+        ...state,
+        ...updates,
+      })
+      const nextTimeRemaining = Math.min(state.timeRemaining, newDuration * 60)
+
+      updates.currentSession = {
+        ...state.currentSession,
+        timeRemaining: nextTimeRemaining,
+        duration: newDuration,
+      }
+
+      updates.timeRemaining = nextTimeRemaining
+
+      if (!state.isRunning) {
+        updates.timeRemaining = newDuration * 60
+      }
+    }
+
+    set(updates)
   },
 
   initializeWithSettings: (settings) => {
@@ -256,6 +290,10 @@ export const useTimerStore = create<TimerState>((set, get) => ({
 
   setTaskOptions: (tasks) => {
     set({ taskOptions: tasks })
+  },
+
+  setAutoStartNextSession: (enabled) => {
+    set({ autoStartNextSession: enabled })
   },
 }))
 

@@ -38,6 +38,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     workDuration,
     shortBreak,
     longBreak,
+    longBreakAfter,
     selectedTask,
     startSession,
     pauseSession,
@@ -47,6 +48,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     tick,
     previewSessionType,
     updateCurrentSession,
+    setTimerSettings,
   } = useTimerStore()
 
   const { user, token, anonymousId, ensureAnonymousId } = useAuthStore((state) => ({
@@ -67,6 +69,47 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const startRequestIdRef = useRef<string | null>(null)
   const lastStartAtRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    const settings = user?.settings
+    if (!settings) {
+      return
+    }
+
+    const {
+      workDuration: userWorkDuration,
+      shortBreak: userShortBreak,
+      longBreak: userLongBreak,
+      longBreakAfter: userLongBreakAfter,
+    } = settings
+
+    const alreadySynced =
+      userWorkDuration === workDuration &&
+      userShortBreak === shortBreak &&
+      userLongBreak === longBreak &&
+      userLongBreakAfter === longBreakAfter
+
+    if (alreadySynced) {
+      return
+    }
+
+    setTimerSettings({
+      workDuration: userWorkDuration,
+      shortBreak: userShortBreak,
+      longBreak: userLongBreak,
+      longBreakAfter: userLongBreakAfter,
+    })
+  }, [
+    user?.settings?.workDuration,
+    user?.settings?.shortBreak,
+    user?.settings?.longBreak,
+    user?.settings?.longBreakAfter,
+    workDuration,
+    shortBreak,
+    longBreak,
+    longBreakAfter,
+    setTimerSettings,
+  ])
 
   useEffect(() => {
     if (isRunning) {
