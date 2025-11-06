@@ -43,6 +43,9 @@ const initSocketOnce = () => {
 
   console.log('[Socket] Initializing connection to', SOCKET_URL)
 
+  // Получаем токен или anonymousId для авторизации
+  const { token, anonymousId } = useAuthStore.getState()
+
   sharedSocket = io(SOCKET_URL, {
     path: '/socket',
     transports: ['websocket', 'polling'],
@@ -52,6 +55,10 @@ const initSocketOnce = () => {
     reconnectionDelay: 2000,
     reconnectionAttempts: 5,
     withCredentials: true,
+    auth: {
+      token: token || undefined,
+      anonymousId: anonymousId || undefined,
+    },
   })
 
   const socket = sharedSocket
@@ -63,6 +70,14 @@ const initSocketOnce = () => {
     console.log('[Socket] Connected to server')
     notifyConnectionListeners(true)
 
+    // Обновляем токен/anonymousId при подключении
+    const { token, anonymousId } = useAuthStore.getState()
+    if (socket.auth && typeof socket.auth === 'object') {
+      const auth = socket.auth as Record<string, any>
+      auth.token = token || undefined
+      auth.anonymousId = anonymousId || undefined
+    }
+
     socket.emit('get-active-sessions')
     socket.emit('get-online-users')
 
@@ -72,6 +87,15 @@ const initSocketOnce = () => {
 
   socket.on('reconnect', () => {
     console.log('[Socket] Reconnected to server')
+    
+    // Обновляем токен/anonymousId при переподключении
+    const { token, anonymousId } = useAuthStore.getState()
+    if (socket.auth && typeof socket.auth === 'object') {
+      const auth = socket.auth as Record<string, any>
+      auth.token = token || undefined
+      auth.anonymousId = anonymousId || undefined
+    }
+    
     socket.emit('get-online-users')
     const user = useAuthStore.getState().user ?? null
     socket.emit('join-presence', buildPresencePayload(user))

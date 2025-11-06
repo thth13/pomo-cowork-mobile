@@ -2,24 +2,41 @@ import { create } from 'zustand'
 import { User, UserSettings } from '@/types'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { API_URL } from '@/config/constants'
+import * as authService from '@/services/authService'
 
 interface AuthState {
   user: User | null
   token: string | null
+  anonymousId: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  isGuest: boolean
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, username: string, password: string) => Promise<boolean>
   logout: () => void
   checkAuth: () => Promise<void>
+  ensureAnonymousId: () => Promise<string>
   updateUserSettings: (settings: Partial<UserSettings>) => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
+  anonymousId: null,
   isAuthenticated: false,
   isLoading: true,
+  isGuest: false,
+
+  ensureAnonymousId: async () => {
+    const currentId = get().anonymousId
+    if (currentId) {
+      return currentId
+    }
+    
+    const anonymousId = await authService.ensureAnonymousId()
+    set({ anonymousId, isGuest: true })
+    return anonymousId
+  },
 
   login: async (email: string, password: string) => {
     try {
@@ -33,26 +50,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (response.ok) {
         const { user, token } = await response.json()
-        await AsyncStorage.setItem('token', token)
         
-        const anonymousId = await AsyncStorage.getItem('anonymous_user_id')
-        if (anonymousId) {
-          await AsyncStorage.removeItem('anonymous_user_id')
-        }
+        // Сохраняем через authService
+        await authService.saveAuth(token, user)
         
-        set({ user, token, isAuthenticated: true })
+        // Очищаем anonymousId при логине
+        await authService.clearAnonymousId()
+        
+        set({ 
+          user, 
+          token,
+          anonymousId: null,
+          isAuthenticated: true,
+          isGuest: false,
+        })
         return true
       }
       return false
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('[Auth] Login error:', error)
       return false
     }
   },
 
   register: async (email: string, username: string, password: string) => {
     try {
-      const anonymousId = await AsyncStorage.getItem('anonymous_user_id')
+      const anonymousId = await authService.getAnonymousId()
       
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
@@ -64,51 +87,90 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (response.ok) {
         const { user, token } = await response.json()
-        await AsyncStorage.setItem('token', token)
         
-        if (anonymousId) {
-          await AsyncStorage.removeItem('anonymous_user_id')
-        }
+        // Сохраняем через authService
+        await authService.saveAuth(token, user)
         
-        set({ user, token, isAuthenticated: true })
+        // Очищаем anonymousId при регистрации
+        await authService.clearAnonymousId()
+        
+        set({ 
+          user, 
+          token,
+          anonymousId: null,
+          isAuthenticated: true,
+          isGuest: false,
+        })
         return true
       }
       return false
     } catch (error) {
-      console.error('Register error:', error)
+      console.error('[Auth] Register error:', error)
       return false
     }
   },
 
   logout: async () => {
-    await AsyncStorage.removeItem('token')
-    set({ user: null, token: null, isAuthenticated: false })
+    await authService.clearStoredAuth()
+    
+    // Генерируем новый anonymousId для следующей сессии
+    const anonymousId = await authService.ensureAnonymousId()
+    
+    set({ 
+      user: null, 
+      token: null,
+      anonymousId,
+      isAuthenticated: false,
+      isGuest: true,
+    })
   },
 
   checkAuth: async () => {
     try {
-      const token = await AsyncStorage.getItem('token')
-      if (!token) {
-        set({ isLoading: false })
+      // Сначала проверяем сохраненный токен
+      const stored = await authService.getStoredAuth()
+      
+      if (!stored) {
+        // Если нет токена, получаем/создаем anonymousId
+        const anonymousId = await authService.ensureAnonymousId()
+        set({ 
+          anonymousId,
+          isGuest: true,
+          isLoading: false,
+        })
         return
       }
 
-      const response = await fetch(`${API_URL}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      // Валидируем токен
+      const user = await authService.validateToken(stored.token)
 
-      if (response.ok) {
-        const user = await response.json()
-        set({ user, token, isAuthenticated: true, isLoading: false })
+      if (user) {
+        set({ 
+          user, 
+          token: stored.token, 
+          isAuthenticated: true, 
+          isGuest: false,
+          isLoading: false,
+        })
       } else {
-        await AsyncStorage.removeItem('token')
-        set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+        // Токен невалиден, получаем anonymousId
+        await authService.clearStoredAuth()
+        const anonymousId = await authService.ensureAnonymousId()
+        set({
+          anonymousId,
+          isGuest: true,
+          isLoading: false,
+        })
       }
     } catch (error) {
-      console.error('Auth check error:', error)
-      set({ user: null, token: null, isAuthenticated: false, isLoading: false })
+      console.error('[Auth] Check error:', error)
+      // При ошибке получаем anonymousId
+      const anonymousId = await authService.ensureAnonymousId()
+      set({
+        anonymousId,
+        isGuest: true,
+        isLoading: false,
+      })
     }
   },
 

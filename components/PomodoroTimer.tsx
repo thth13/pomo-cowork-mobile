@@ -1,12 +1,30 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import Svg, { Circle } from 'react-native-svg'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { SessionType, SessionStatus } from '@/types'
 import { useSocket } from '@/hooks/useSocket'
 import { API_URL } from '@/config/constants'
+
+const START_THROTTLE_MS = 750
+
+type ServiceWorkerMessage = {
+  type: string
+  payload?: Record<string, unknown>
+}
+
+const sendMessageToServiceWorker = (message: ServiceWorkerMessage) => {
+  const nav = typeof navigator !== 'undefined'
+    ? (navigator as typeof navigator & {
+        serviceWorker?: {
+          controller?: { postMessage: (data: ServiceWorkerMessage) => void }
+        }
+      })
+    : null
+
+  nav?.serviceWorker?.controller?.postMessage(message)
+}
 
 interface PomodoroTimerProps {
   onSessionComplete?: () => void
@@ -28,9 +46,15 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     cancelSession,
     tick,
     previewSessionType,
+    updateCurrentSession,
   } = useTimerStore()
 
-  const { user } = useAuthStore()
+  const { user, token, anonymousId, ensureAnonymousId } = useAuthStore((state) => ({
+    user: state.user,
+    token: state.token,
+    anonymousId: state.anonymousId,
+    ensureAnonymousId: state.ensureAnonymousId,
+  }))
   const {
     emitSessionStart,
     emitSessionSync,
@@ -39,6 +63,9 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     isConnected,
   } = useSocket()
   const [sessionType, setSessionType] = useState<SessionType>(SessionType.WORK)
+  const [isStarting, setIsStarting] = useState(false)
+  const startRequestIdRef = useRef<string | null>(null)
+  const lastStartAtRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -71,24 +98,46 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     }
   }, [sessionType, currentSession, previewSessionType])
 
+  const resolveAuthContext = useCallback(async (): Promise<{
+    token: string | null
+    anonymousId: string | null
+  }> => {
+    if (token) {
+      return { token, anonymousId: null }
+    }
+
+    const ensuredAnonymousId = anonymousId ?? (await ensureAnonymousId())
+    return { token: null, anonymousId: ensuredAnonymousId }
+  }, [token, anonymousId, ensureAnonymousId])
+
   const handleSessionComplete = async () => {
     if (!currentSession) return
 
     try {
-      const token = await AsyncStorage.getItem('token')
-      if (token) {
-        await fetch(`${API_URL}/api/sessions/${currentSession.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            status: SessionStatus.COMPLETED,
-            completedAt: new Date().toISOString(),
-          }),
-        })
+      const { token: authToken, anonymousId: resolvedAnonymousId } = await resolveAuthContext()
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       }
+
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`
+      }
+
+      const body: Record<string, unknown> = {
+        status: SessionStatus.COMPLETED,
+        completedAt: new Date().toISOString(),
+      }
+
+      if (!authToken && resolvedAnonymousId) {
+        body.anonymousId = resolvedAnonymousId
+      }
+
+      await fetch(`${API_URL}/api/sessions/${currentSession.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      })
     } catch (error) {
       console.error('Failed to complete session:', error)
     }
@@ -101,48 +150,137 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     }
   }
 
-  const handleStart = async () => {
+  const mutateSessions = useCallback(async () => Promise.resolve(), [])
+
+  const handleStart = () => {
+    const now = Date.now()
+
+    if (isStarting) {
+      return
+    }
+
+    if (now - lastStartAtRef.current < START_THROTTLE_MS) {
+      return
+    }
+
+    lastStartAtRef.current = now
+
+    const requestId = `${now}-${Math.random().toString(36).slice(2)}`
+    startRequestIdRef.current = requestId
+
+    setIsStarting(true)
+
+    if (currentSession) {
+      cancelSession()
+    }
+
     const duration = getSessionDuration(sessionType)
     const taskName = selectedTask?.title || getSessionTypeLabel(sessionType)
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const tempStartedAt = new Date().toISOString()
 
-    try {
-      const token = await AsyncStorage.getItem('token')
-      if (token) {
+    startSession(taskName, duration, sessionType, tempId)
+    updateCurrentSession(tempId, { startedAt: tempStartedAt })
+
+    sendMessageToServiceWorker({
+      type: 'START_TIMER',
+      payload: {
+        sessionId: tempId,
+        duration,
+        timeRemaining: duration * 60,
+        startedAt: tempStartedAt,
+      },
+    })
+
+    const sessionPayload = {
+      task: taskName,
+      duration,
+      type: sessionType,
+    }
+
+    void (async () => {
+      try {
+        const { token: authToken, anonymousId: resolvedAnonymousId } = await resolveAuthContext()
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`
+        }
+
+        const body: Record<string, unknown> = { ...sessionPayload }
+
+        if (!authToken && resolvedAnonymousId) {
+          body.anonymousId = resolvedAnonymousId
+        }
+
         const response = await fetch(`${API_URL}/api/sessions`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            task: taskName,
-            duration,
-            type: sessionType,
-          }),
+          headers,
+          body: JSON.stringify(body),
         })
 
-        if (response.ok) {
-          const dbSession = await response.json()
-          startSession(taskName, duration, sessionType, dbSession.id)
-          
-          emitSessionStart({
-            id: dbSession.id,
-            task: taskName,
-            duration,
-            type: sessionType,
-            userId: user?.id,
-            username: user?.username,
-            avatarUrl: user?.avatarUrl,
-            timeRemaining: duration * 60,
-            startedAt: dbSession.startedAt,
-            status: SessionStatus.ACTIVE,
-          })
+        if (!response.ok) {
+          const errorMessage = await response.text().catch(() => null)
+          throw new Error(errorMessage || 'Failed to create session')
         }
+
+        const dbSession = await response.json()
+        void mutateSessions()
+
+        if (requestId !== startRequestIdRef.current) {
+          return
+        }
+
+        const persistedStartedAt = dbSession.startedAt ?? tempStartedAt
+        const newSessionId: string | undefined = dbSession.id
+
+        if (!newSessionId) {
+          throw new Error('Server response missing session id')
+        }
+
+        updateCurrentSession(tempId, {
+          id: newSessionId,
+          startedAt: persistedStartedAt,
+          timeRemaining: duration * 60,
+        })
+
+        sendMessageToServiceWorker({
+          type: 'UPDATE_SESSION_ID',
+          payload: {
+            oldSessionId: tempId,
+            newSessionId,
+            startedAt: persistedStartedAt,
+          },
+        })
+
+        const sessionData = {
+          id: newSessionId,
+          task: taskName,
+          duration,
+          type: sessionType,
+          userId: user?.id,
+          username: user?.username,
+          avatarUrl: user?.avatarUrl,
+          timeRemaining: duration * 60,
+          startedAt: persistedStartedAt,
+          status: SessionStatus.ACTIVE,
+        }
+
+        emitSessionStart(sessionData)
+      } catch (error) {
+        console.error('Failed to start session:', error)
+      } finally {
+        setTimeout(() => {
+          if (startRequestIdRef.current === requestId) {
+            startRequestIdRef.current = null
+            setIsStarting(false)
+          }
+        }, 300)
       }
-    } catch (error) {
-      console.error('Failed to start session:', error)
-      startSession(taskName, duration, sessionType)
-    }
+    })()
   }
 
   const handlePause = () => {
@@ -168,20 +306,30 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const handleStop = async () => {
     if (currentSession) {
       try {
-        const token = await AsyncStorage.getItem('token')
-        if (token) {
-          await fetch(`${API_URL}/api/sessions/${currentSession.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              status: SessionStatus.CANCELLED,
-              endedAt: new Date().toISOString(),
-            }),
-          })
+        const { token: authToken, anonymousId: resolvedAnonymousId } = await resolveAuthContext()
+
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
         }
+
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`
+        }
+
+        const body: Record<string, unknown> = {
+          status: SessionStatus.CANCELLED,
+          endedAt: new Date().toISOString(),
+        }
+
+        if (!authToken && resolvedAnonymousId) {
+          body.anonymousId = resolvedAnonymousId
+        }
+
+        await fetch(`${API_URL}/api/sessions/${currentSession.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify(body),
+        })
       } catch (error) {
         console.error('Failed to stop session:', error)
       }

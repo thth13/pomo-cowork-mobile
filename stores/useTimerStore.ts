@@ -30,6 +30,7 @@ interface TimerState {
   tick: () => void
   setActiveSessions: (sessions: ActiveSession[]) => void
   updateActiveSessionTime: (sessionId: string, timeRemaining: number) => void
+  updateCurrentSession: (sessionId: string, updates: Partial<PomodoroSession>) => void
   restoreSession: (session: PomodoroSession) => void
   previewSessionType: (type: SessionType) => void
   setSelectedTask: (task: { id: string; title: string; description?: string } | null) => void
@@ -192,6 +193,29 @@ export const useTimerStore = create<TimerState>((set, get) => ({
           : session
       ))
     }))
+  },
+
+  updateCurrentSession: (sessionId, updates) => {
+    const { currentSession } = get()
+
+    if (!currentSession || currentSession.id !== sessionId) {
+      return
+    }
+
+    const mergedSession: PomodoroSession = {
+      ...currentSession,
+      ...updates,
+    }
+
+    const nextState: Partial<TimerState> = {
+      currentSession: mergedSession,
+    }
+
+    if (typeof updates.timeRemaining === 'number') {
+      nextState.timeRemaining = updates.timeRemaining
+    }
+
+    set(nextState)
   },
 
   previewSessionType: (type) => {
