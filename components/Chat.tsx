@@ -5,6 +5,8 @@ import { useSocket } from '@/hooks/useSocket'
 import { ChatMessage } from '@/types'
 import { API_URL } from '@/config/constants'
 
+const SKELETON_PLACEHOLDERS = Array.from({ length: 10 }, (_, index) => index)
+
 export default function Chat() {
   const { user } = useAuthStore()
   const {
@@ -69,6 +71,7 @@ export default function Chat() {
       id: `temp-${Date.now()}`,
       userId: user?.id || null,
       username: user?.username || 'Guest',
+      avatarUrl: user?.avatarUrl,
       text,
       timestamp: Date.now(),
       type: 'message'
@@ -83,6 +86,7 @@ export default function Chat() {
         body: JSON.stringify({
           userId: user?.id || null,
           username: user?.username || 'Guest',
+          avatarUrl: user?.avatarUrl,
           text
         })
       })
@@ -174,18 +178,36 @@ export default function Chat() {
         </View>
       </View>
 
-      {loading ? (
-        <Text style={styles.loadingText}>Loading...</Text>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          style={styles.messageList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-        />
-      )}
+      <View style={styles.messagesWrapper}>
+        {loading ? (
+          <View style={styles.skeletonList}>
+            {SKELETON_PLACEHOLDERS.map((placeholder) => (
+              <View key={`chat-skeleton-${placeholder}`} style={styles.skeletonMessage}>
+                <View style={styles.skeletonAvatar} />
+                <View style={styles.skeletonBubble}>
+                  <View style={styles.skeletonLineLong} />
+                  <View style={styles.skeletonLineShort} />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : messages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>No messages yet</Text>
+            <Text style={styles.emptyStateSubtext}>Start the conversation below</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessage}
+            keyExtractor={(item) => item.id}
+            style={styles.messageList}
+            contentContainerStyle={styles.messageListContent}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+          />
+        )}
+      </View>
 
       <View style={styles.inputContainer}>
         {user?.avatarUrl ? (
@@ -248,9 +270,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#22c55e',
   },
-  messageList: {
+  messagesWrapper: {
     flex: 1,
     marginBottom: 12,
+  },
+  messageList: {
+    flex: 1,
+  },
+  messageListContent: {
+    paddingBottom: 4,
   },
   message: {
     flexDirection: 'row',
@@ -344,10 +372,52 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
-  loadingText: {
-    textAlign: 'center',
+  skeletonList: {
+    flex: 1,
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  skeletonMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  skeletonAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e5e7eb',
+  },
+  skeletonBubble: {
+    flex: 1,
+    paddingVertical: 2,
+    gap: 6,
+  },
+  skeletonLineLong: {
+    width: '80%',
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+  },
+  skeletonLineShort: {
+    width: '50%',
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  emptyStateSubtext: {
+    fontSize: 13,
     color: '#9ca3af',
-    fontSize: 14,
-    paddingVertical: 24,
   },
 })
