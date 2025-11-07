@@ -6,6 +6,9 @@ interface TimerTaskOption {
   title: string
   description?: string
   completed?: boolean
+  priority?: 'Critical' | 'High' | 'Medium' | 'Low'
+  pomodoros?: number
+  completedPomodoros?: number
 }
 
 interface TimerState {

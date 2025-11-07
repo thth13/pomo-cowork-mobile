@@ -766,12 +766,25 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
       </View>
 
       <View style={styles.controls}>
+        <View style={styles.currentTask}>
+          <Text style={styles.currentTaskLabel}>Текущая задача</Text>
+          <Text
+            style={[
+              styles.currentTaskName,
+              !selectedTask && styles.currentTaskNameEmpty,
+            ]}
+            numberOfLines={1}
+          >
+            {selectedTask ? selectedTask.title : 'Не выбрана'}
+          </Text>
+        </View>
+
         {!currentSession ? (
           <TouchableOpacity style={styles.startButton} onPress={handleStart}>
             <Text style={styles.startButtonText}>Start</Text>
           </TouchableOpacity>
         ) : (
-          <>
+          <View style={styles.buttonRow}>
             {isPaused ? (
               <TouchableOpacity
                 style={[
@@ -805,7 +818,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             >
               <Text style={styles.buttonText}>Stop</Text>
             </TouchableOpacity>
-          </>
+          </View>
         )}
       </View>
     </View>
@@ -899,9 +912,33 @@ const styles = StyleSheet.create({
     color: '#2563eb',
   },
   controls: {
+    width: '100%',
+    marginTop: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  currentTask: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  currentTaskLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  currentTaskName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  currentTaskNameEmpty: {
+    color: '#94a3b8',
+    fontWeight: '400',
+  },
+  buttonRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
   },
   startButton: {
     backgroundColor: '#ef4444',

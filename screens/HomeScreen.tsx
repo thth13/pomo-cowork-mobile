@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, StyleSheet, Text, TouchableOpacity, Modal, FlatList, ListRenderItemInfo, ActivityIndicator, TouchableWithoutFeedback, ScrollView } from 'react-native'
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import { useTimerStore } from '@/stores/useTimerStore'
@@ -8,7 +8,7 @@ import { API_URL } from '@/config/constants'
 import { Task } from '@/types'
 import { ActiveSessions } from '@/components/ActiveSessions'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import TaskList, { TaskListRef } from '@/components/TaskList'
+import TaskManagementModal from '@/components/TaskManagementModal'
 
 const TAB_BAR_HEIGHT = 60
 
@@ -21,11 +21,9 @@ export default function HomeScreen() {
     taskOptions,
     isRunning,
   } = useTimerStore()
-  const { user } = useAuthStore()
+  const { user, token } = useAuthStore()
   const [taskModalVisible, setTaskModalVisible] = React.useState(false)
-  const [isLoadingTasks, setIsLoadingTasks] = React.useState(false)
   const insets = useSafeAreaInsets()
-  const taskListRef = React.useRef<TaskListRef>(null)
 
   const bottomInset = React.useMemo(() => Math.max(insets.bottom, 16), [insets.bottom])
   const listBottomPadding = React.useMemo(
@@ -33,48 +31,68 @@ export default function HomeScreen() {
     [bottomInset]
   )
 
-  const loadTasks = React.useCallback(async () => {
+  const resolveToken = React.useCallback(async () => {
+    if (token) {
+      return token
+    }
+    const storedToken = await AsyncStorage.getItem('auth_token')
+    return storedToken
+  }, [token])
+
+  const loadTasks = React.useCallback(async (): Promise<Task[]> => {
     if (!user) {
       setTaskOptions([])
-      return
+      return []
     }
 
-    setIsLoadingTasks(true)
     try {
-      const token = await AsyncStorage.getItem('token')
-      if (!token) {
+      const resolvedToken = await resolveToken()
+      if (!resolvedToken) {
         setTaskOptions([])
-        return
+        return []
       }
 
       const response = await fetch(`${API_URL}/api/tasks`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${resolvedToken}`,
         },
       })
 
       if (response.ok) {
         const data: Task[] = await response.json()
+        const normalized = data.map((task) => ({
+          ...task,
+          description: task.description ?? '',
+          completed: task.completed ?? false,
+          priority: task.priority ?? 'Medium',
+          pomodoros: task.pomodoros ?? 0,
+          completedPomodoros: task.completedPomodoros ?? 0,
+        }))
         setTaskOptions(
-          data.map((task) => ({
+          normalized.map((task) => ({
             id: task.id,
             title: task.title,
             description: task.description,
+            completed: task.completed,
+            priority: task.priority,
+            pomodoros: task.pomodoros,
+            completedPomodoros: task.completedPomodoros,
           }))
         )
+        return normalized
       } else {
         setTaskOptions([])
+        return []
       }
     } catch (error) {
       console.error('Failed to load tasks for selector:', error)
       setTaskOptions([])
-    } finally {
-      setIsLoadingTasks(false)
+      return []
     }
-  }, [setTaskOptions, user])
+  }, [resolveToken, setTaskOptions, user])
 
   React.useEffect(() => {
-    loadTasks()
+    void loadTasks()
   }, [loadTasks])
 
   React.useEffect(() => {
@@ -94,44 +112,33 @@ export default function HomeScreen() {
 
   const handleSessionComplete = React.useCallback(async () => {
     await loadTasks()
-    await taskListRef.current?.refreshTasks()
   }, [loadTasks])
 
   const handleOpenTaskModal = () => {
     if (isRunning) return
+    void loadTasks()
     setTaskModalVisible(true)
   }
 
-  const handleSelectTask = (taskId: string | null) => {
-    if (taskId === null) {
+  const handleSelectTask = React.useCallback((task: Task | null) => {
+    if (!task) {
       setSelectedTask(null)
-    } else {
-      const task = taskOptions.find((option) => option.id === taskId)
-      if (task) {
-        setSelectedTask({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-        })
-      }
+      return
     }
-    setTaskModalVisible(false)
-  }
 
-  const renderTaskOption = ({
-    item,
-  }: ListRenderItemInfo<{ id: string; title: string }>) => {
-    const isActive = selectedTask?.id === item.id
+    setSelectedTask({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+    })
+  }, [setSelectedTask])
 
-    return (
-      <TouchableOpacity
-        style={[styles.taskOption, isActive && styles.taskOptionActive]}
-        onPress={() => handleSelectTask(item.id)}
-      >
-        <Text style={styles.taskOptionText}>{item.title}</Text>
-      </TouchableOpacity>
-    )
-  }
+  const handleModalSelectTask = React.useCallback(
+    (task: Task | null) => {
+      handleSelectTask(task)
+    },
+    [handleSelectTask]
+  )
 
   return (
     <View style={styles.screen}>
@@ -145,20 +152,22 @@ export default function HomeScreen() {
       >
         <View style={styles.timerSection}>
           <View style={styles.taskSelectorContainer}>
-            <Text style={styles.sectionLabel}>My Tasks</Text>
+            <Text style={styles.sectionLabel}>Task</Text>
             <TouchableOpacity
-              style={[
-                styles.taskSelector,
-                isRunning && styles.taskSelectorDisabled,
-              ]}
               onPress={handleOpenTaskModal}
+              disabled={isRunning}
+              style={[
+                styles.taskSelectorButton,
+                isRunning && styles.taskSelectorButtonDisabled,
+              ]}
               activeOpacity={isRunning ? 1 : 0.7}
             >
-              <Text style={styles.taskSelectorText}>
-                {selectedTask ? selectedTask.title : 'Select a task'}
+              <Text style={styles.taskSelectorValue} numberOfLines={1}>
+                {selectedTask ? selectedTask.title : 'Not selected'}
               </Text>
               <Text style={styles.taskSelectorCaret}>{isRunning ? '—' : '⌄'}</Text>
             </TouchableOpacity>
+
           </View>
 
           <PomodoroTimer onSessionComplete={handleSessionComplete} />
@@ -168,44 +177,18 @@ export default function HomeScreen() {
           <ActiveSessions sessions={activeSessions} currentUserId={user?.id} />
         </View>
 
-        <View style={styles.taskListWrapper}>
-          <TaskList ref={taskListRef} />
-        </View>
       </ScrollView>
 
-      <Modal
+      <TaskManagementModal
         visible={taskModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTaskModalVisible(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setTaskModalVisible(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>Select Task</Text>
-                <TouchableOpacity
-                  style={styles.taskOption}
-                  onPress={() => handleSelectTask(null)}
-                >
-                  <Text style={styles.taskOptionText}>No task</Text>
-                </TouchableOpacity>
-                {isLoadingTasks ? (
-                  <ActivityIndicator size="small" color="#ef4444" />
-                ) : (
-                  <FlatList
-                    data={taskOptions}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderTaskOption}
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    keyboardShouldPersistTaps="handled"
-                  />
-                )}
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        onClose={() => setTaskModalVisible(false)}
+        selectedTaskId={selectedTask?.id ?? null}
+        onSelectTask={handleModalSelectTask}
+        resolveToken={resolveToken}
+        loadTasks={loadTasks}
+        user={user}
+        isSelectionLocked={isRunning}
+      />
     </View>
   )
 }
@@ -213,7 +196,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f9fafb',
   },
   scroll: {
     flex: 1,
@@ -230,80 +213,54 @@ const styles = StyleSheet.create({
   taskSelectorContainer: {
     width: '100%',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 10,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    gap: 8,
   },
   sectionLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#475569',
-    marginBottom: 10,
+    letterSpacing: 0.4,
   },
-  taskSelector: {
+  taskSelectorButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f8fafc',
   },
-  taskSelectorDisabled: {
+  taskSelectorButtonDisabled: {
     opacity: 0.6,
   },
-  taskSelectorText: {
-    fontSize: 15,
+  taskSelectorValue: {
+    flex: 1,
+    marginRight: 8,
+    fontSize: 14,
     fontWeight: '500',
-    color: '#1e293b',
+    color: '#0f172a',
   },
   taskSelectorCaret: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#94a3b8',
+  },
+  manageLink: {
+    alignSelf: 'flex-start',
+  },
+  manageLinkText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  manageLinkTextDisabled: {
+    color: '#cbd5f5',
   },
   sessionsWrapper: {
     marginBottom: 0,
-  },
-  taskListWrapper: {
-    width: '100%',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    width: '100%',
-    maxHeight: '70%',
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
-    gap: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1f2937',
-  },
-  taskOption: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
-  },
-  taskOptionActive: {
-    backgroundColor: '#fee2e2',
-  },
-  taskOptionText: {
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  separator: {
-    height: 8,
   },
 })
