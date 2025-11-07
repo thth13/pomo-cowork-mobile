@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   ListRenderItemInfo,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -300,72 +302,78 @@ export function TaskManagementModal({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.content}>
-              <View style={styles.header}>
-                <Text style={styles.title}>My Tasks</Text>
-                <TouchableOpacity onPress={onClose}>
-                  <Text style={styles.closeButton}>×</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="New task..."
-                  value={newTaskTitle}
-                  onChangeText={setNewTaskTitle}
-                  editable={!isSubmitting}
-                  returnKeyType="done"
-                  onSubmitEditing={handleKeySubmit}
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.addButton,
-                    (!newTaskTitle.trim() || isSubmitting) && styles.addButtonDisabled,
-                  ]}
-                  onPress={() => void handleAddTask()}
-                  disabled={!newTaskTitle.trim() || isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <Text style={styles.addButtonText}>+</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {errorMessage && isAuthenticated && !isLoading && (
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              )}
-
-              {isLoading ? (
-                <View style={styles.skeletonList}>
-                  {SKELETON_PLACEHOLDERS.map((placeholder) => (
-                    <View key={`task-skeleton-${placeholder}`} style={styles.skeletonItem}>
-                      <View style={styles.skeletonHeader}>
-                        <View style={styles.skeletonTitle} />
-                        <View style={styles.skeletonDot} />
-                      </View>
-                      <View style={styles.skeletonSubtitle} />
-                    </View>
-                  ))}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+              style={styles.keyboardAvoider}
+            >
+              <View style={styles.content}>
+                <View style={styles.header}>
+                  <Text style={styles.title}>My Tasks</Text>
+                  <TouchableOpacity onPress={onClose}>
+                    <Text style={styles.closeButton}>×</Text>
+                  </TouchableOpacity>
                 </View>
-              ) : (
-                <>
-                  <FlatList<Task | null>
-                    data={taskOptions}
-                    keyExtractor={(item, index) => item?.id ?? `no-task-${index}`}
-                    renderItem={renderTaskItem}
-                    contentContainerStyle={styles.list}
-                    ItemSeparatorComponent={() => <View style={styles.separator} />}
-                    keyboardShouldPersistTaps="handled"
+
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="New task..."
+                    value={newTaskTitle}
+                    onChangeText={setNewTaskTitle}
+                    editable={!isSubmitting}
+                    returnKeyType="done"
+                    onSubmitEditing={handleKeySubmit}
                   />
-                  {tasks.length === 0 && (
-                    <Text style={styles.emptyText}>{emptyMessage}</Text>
-                  )}
-                </>
-              )}
-            </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.addButton,
+                      (!newTaskTitle.trim() || isSubmitting) && styles.addButtonDisabled,
+                    ]}
+                    onPress={() => void handleAddTask()}
+                    disabled={!newTaskTitle.trim() || isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.addButtonText}>+</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {errorMessage && isAuthenticated && !isLoading && (
+                  <Text style={styles.errorText}>{errorMessage}</Text>
+                )}
+
+                {isLoading ? (
+                  <View style={styles.skeletonList}>
+                    {SKELETON_PLACEHOLDERS.map((placeholder) => (
+                      <View key={`task-skeleton-${placeholder}`} style={styles.skeletonItem}>
+                        <View style={styles.skeletonHeader}>
+                          <View style={styles.skeletonTitle} />
+                          <View style={styles.skeletonDot} />
+                        </View>
+                        <View style={styles.skeletonSubtitle} />
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <>
+                    <FlatList<Task | null>
+                      data={taskOptions}
+                      keyExtractor={(item, index) => item?.id ?? `no-task-${index}`}
+                      renderItem={renderTaskItem}
+                      contentContainerStyle={styles.list}
+                      ItemSeparatorComponent={() => <View style={styles.separator} />}
+                      keyboardShouldPersistTaps="handled"
+                    />
+                    {tasks.length === 0 && (
+                      <Text style={styles.emptyText}>{emptyMessage}</Text>
+                    )}
+                  </>
+                )}
+              </View>
+            </KeyboardAvoidingView>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
@@ -380,6 +388,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  keyboardAvoider: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     width: '100%',

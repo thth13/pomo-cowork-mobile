@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image } from 'react-native'
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, KeyboardAvoidingView, Platform } from 'react-native'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useSocket } from '@/hooks/useSocket'
 import { ChatMessage } from '@/types'
@@ -170,70 +170,76 @@ export default function Chat() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>General Chat</Text>
-        <View style={styles.onlineIndicator}>
-          <View style={styles.onlineDot} />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    >
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>General Chat</Text>
+          <View style={styles.onlineIndicator}>
+            <View style={styles.onlineDot} />
+          </View>
+        </View>
+
+        <View style={styles.messagesWrapper}>
+          {loading ? (
+            <View style={styles.skeletonList}>
+              {SKELETON_PLACEHOLDERS.map((placeholder) => (
+                <View key={`chat-skeleton-${placeholder}`} style={styles.skeletonMessage}>
+                  <View style={styles.skeletonAvatar} />
+                  <View style={styles.skeletonBubble}>
+                    <View style={styles.skeletonLineLong} />
+                    <View style={styles.skeletonLineShort} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No messages yet</Text>
+              <Text style={styles.emptyStateSubtext}>Start the conversation below</Text>
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id}
+              style={styles.messageList}
+              contentContainerStyle={styles.messageListContent}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+            />
+          )}
+        </View>
+
+        <View style={styles.inputContainer}>
+          {user?.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.inputAvatar} />
+          ) : (
+            <View style={[styles.inputAvatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarText}>
+                {(user?.username || 'G').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <TextInput
+            style={styles.input}
+            placeholder="Write a message..."
+            value={input}
+            onChangeText={(text) => {
+              setInput(text)
+              emitChatTyping(true)
+            }}
+            onSubmitEditing={onSubmit}
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={onSubmit}>
+            <Text style={styles.sendButtonText}>→</Text>
+          </TouchableOpacity>
         </View>
       </View>
-
-      <View style={styles.messagesWrapper}>
-        {loading ? (
-          <View style={styles.skeletonList}>
-            {SKELETON_PLACEHOLDERS.map((placeholder) => (
-              <View key={`chat-skeleton-${placeholder}`} style={styles.skeletonMessage}>
-                <View style={styles.skeletonAvatar} />
-                <View style={styles.skeletonBubble}>
-                  <View style={styles.skeletonLineLong} />
-                  <View style={styles.skeletonLineShort} />
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : messages.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No messages yet</Text>
-            <Text style={styles.emptyStateSubtext}>Start the conversation below</Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
-            style={styles.messageList}
-            contentContainerStyle={styles.messageListContent}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-          />
-        )}
-      </View>
-
-      <View style={styles.inputContainer}>
-        {user?.avatarUrl ? (
-          <Image source={{ uri: user.avatarUrl }} style={styles.inputAvatar} />
-        ) : (
-          <View style={[styles.inputAvatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarText}>
-              {(user?.username || 'G').charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder="Write a message..."
-          value={input}
-          onChangeText={(text) => {
-            setInput(text)
-            emitChatTyping(true)
-          }}
-          onSubmitEditing={onSubmit}
-        />
-        <TouchableOpacity style={styles.sendButton} onPress={onSubmit}>
-          <Text style={styles.sendButtonText}>→</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

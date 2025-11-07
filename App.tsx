@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
+import { Image, View } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -191,12 +192,43 @@ const TAB_ICON_MAP: Record<TabIconName, FeatherIconName> = {
 const TabIcon = ({
   name,
   color,
-  focused: _focused,
+  focused,
 }: {
   name: TabIconName
   color: string
   focused: boolean
 }) => {
+  const avatarUrl = useAuthStore((state) => state.user?.avatarUrl)
+
+  if (name === 'profile' && avatarUrl) {
+    const AVATAR_SIZE = 28
+
+    return (
+      <View
+        style={{
+          width: AVATAR_SIZE + 6,
+          height: AVATAR_SIZE + 6,
+          borderRadius: (AVATAR_SIZE + 6) / 2,
+          borderWidth: focused ? 2 : 1,
+          borderColor: color,
+          padding: 2,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#fff',
+        }}
+      >
+        <Image
+          source={{ uri: avatarUrl }}
+          style={{
+            width: AVATAR_SIZE,
+            height: AVATAR_SIZE,
+            borderRadius: AVATAR_SIZE / 2,
+          }}
+        />
+      </View>
+    )
+  }
+
   const iconName = TAB_ICON_MAP[name]
 
   return <Feather name={iconName} size={24} color={color} />

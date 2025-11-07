@@ -11,10 +11,14 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
+  ToastAndroid,
+  Alert,
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import * as Notifications from 'expo-notifications'
+import { useNavigation } from '@react-navigation/native'
+import type { NavigationProp } from '@react-navigation/native'
 
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useTimerStore } from '@/stores/useTimerStore'
@@ -34,6 +38,15 @@ const DEFAULT_SETTINGS: UserSettings = {
 }
 
 let notificationHandlerConfigured = false
+
+const PROFILE_SAVE_SUCCESS_MESSAGE = 'Profile updated successfully.'
+
+type RootTabParamList = {
+  Pomodoro: undefined
+  Chat: undefined
+  Settings: undefined
+  Profile: undefined
+}
 
 function ensureNotificationHandler() {
   if (notificationHandlerConfigured) {
@@ -56,6 +69,14 @@ function ensureNotificationHandler() {
 export default function ProfileScreen() {
   ensureNotificationHandler()
 
+  const navigation = useNavigation<NavigationProp<RootTabParamList>>()
+  const showProfileSaveToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT)
+    } else {
+      Alert.alert('Success', message)
+    }
+  }
   const {
     user,
     token,
@@ -326,8 +347,10 @@ export default function ProfileScreen() {
       setAvatarAsset(null)
       setSaveFeedback({
         type: 'success',
-        message: 'Profile updated successfully.',
+        message: PROFILE_SAVE_SUCCESS_MESSAGE,
       })
+      showProfileSaveToast(PROFILE_SAVE_SUCCESS_MESSAGE)
+      navigation.navigate('Pomodoro')
     } catch (error) {
       console.error('Failed to save profile:', error)
       setSaveFeedback({
@@ -392,6 +415,7 @@ export default function ProfileScreen() {
 
       if (success) {
         resetForm()
+        navigation.navigate('Pomodoro')
       }
     } catch (err) {
       setAuthError('An error occurred. Please try again.')
