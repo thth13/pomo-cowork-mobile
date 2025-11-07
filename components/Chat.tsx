@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, KeyboardAvoidingView, Platform } from 'react-native'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 import { useSocket } from '@/hooks/useSocket'
 import { ChatMessage } from '@/types'
 import { API_URL } from '@/config/constants'
@@ -9,6 +11,8 @@ const SKELETON_PLACEHOLDERS = Array.from({ length: 10 }, (_, index) => index)
 
 export default function Chat() {
   const { user } = useAuthStore()
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
   const {
     sendChatMessage,
     requestChatHistory,
@@ -110,8 +114,8 @@ export default function Chat() {
     }
 
     return (
-      <View style={styles.avatarPlaceholder}>
-        <Text style={styles.avatarText}>
+      <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+        <Text style={[styles.avatarText, { color: colors.textSecondary }]}>
           {message.username.charAt(0).toUpperCase()}
         </Text>
       </View>
@@ -135,10 +139,10 @@ export default function Chat() {
           {renderAvatar(item)}
           <View style={styles.messageContent}>
             <View style={styles.messageHeader}>
-              <Text style={styles.username}>{item.username}</Text>
-              <Text style={styles.timestamp}>{actionTime}</Text>
+              <Text style={[styles.username, { color: colors.text }]}>{item.username}</Text>
+              <Text style={[styles.timestamp, { color: colors.textTertiary }]}>{actionTime}</Text>
             </View>
-            <Text style={styles.systemActionText}>
+            <Text style={[styles.systemActionText, { color: colors.error }]}>
               started a{' '}
               <Text style={styles.systemActionTask}>
                 {taskLabel || 'focus'}
@@ -155,15 +159,15 @@ export default function Chat() {
         {renderAvatar(item)}
         <View style={styles.messageContent}>
           <View style={styles.messageHeader}>
-            <Text style={styles.username}>{item.username}</Text>
-            <Text style={styles.timestamp}>
+            <Text style={[styles.username, { color: colors.text }]}>{item.username}</Text>
+            <Text style={[styles.timestamp, { color: colors.textTertiary }]}>
               {new Date(item.timestamp).toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit'
               })}
             </Text>
           </View>
-          <Text style={styles.messageText}>{item.text}</Text>
+          <Text style={[styles.messageText, { color: colors.textSecondary }]}>{item.text}</Text>
         </View>
       </View>
     )
@@ -175,9 +179,17 @@ export default function Chat() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      <View style={styles.container}>
+      <View style={[
+        styles.container,
+        { 
+          backgroundColor: colors.card,
+          shadowColor: colors.shadow,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }
+      ]}>
         <View style={styles.header}>
-          <Text style={styles.title}>General Chat</Text>
+          <Text style={[styles.title, { color: colors.text }]}>General Chat</Text>
           <View style={styles.onlineIndicator}>
             <View style={styles.onlineDot} />
           </View>
@@ -188,18 +200,20 @@ export default function Chat() {
             <View style={styles.skeletonList}>
               {SKELETON_PLACEHOLDERS.map((placeholder) => (
                 <View key={`chat-skeleton-${placeholder}`} style={styles.skeletonMessage}>
-                  <View style={styles.skeletonAvatar} />
+                  <View style={[styles.skeletonAvatar, { backgroundColor: colors.border }]} />
                   <View style={styles.skeletonBubble}>
-                    <View style={styles.skeletonLineLong} />
-                    <View style={styles.skeletonLineShort} />
+                    <View style={[styles.skeletonLineLong, { backgroundColor: colors.border }]} />
+                    <View style={[styles.skeletonLineShort, { backgroundColor: colors.border }]} />
                   </View>
                 </View>
               ))}
             </View>
           ) : messages.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No messages yet</Text>
-              <Text style={styles.emptyStateSubtext}>Start the conversation below</Text>
+              <Text style={[styles.emptyStateText, { color: colors.text }]}>No messages yet</Text>
+              <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>
+                Start the conversation below
+              </Text>
             </View>
           ) : (
             <FlatList
@@ -218,15 +232,27 @@ export default function Chat() {
           {user?.avatarUrl ? (
             <Image source={{ uri: user.avatarUrl }} style={styles.inputAvatar} />
           ) : (
-            <View style={[styles.inputAvatar, styles.avatarPlaceholder]}>
-              <Text style={styles.avatarText}>
+            <View style={[
+              styles.inputAvatar, 
+              styles.avatarPlaceholder,
+              { backgroundColor: colors.border }
+            ]}>
+              <Text style={[styles.avatarText, { color: colors.textSecondary }]}>
                 {(user?.username || 'G').charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              { 
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+                color: colors.text,
+              }
+            ]}
             placeholder="Write a message..."
+            placeholderTextColor={colors.textPlaceholder}
             value={input}
             onChangeText={(text) => {
               setInput(text)
@@ -234,7 +260,10 @@ export default function Chat() {
             }}
             onSubmitEditing={onSubmit}
           />
-          <TouchableOpacity style={styles.sendButton} onPress={onSubmit}>
+          <TouchableOpacity 
+            style={[styles.sendButton, { backgroundColor: colors.primary }]} 
+            onPress={onSubmit}
+          >
             <Text style={styles.sendButtonText}>→</Text>
           </TouchableOpacity>
         </View>
@@ -246,10 +275,8 @@ export default function Chat() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -264,7 +291,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
   },
   onlineIndicator: {
     flexDirection: 'row',
@@ -297,7 +323,6 @@ const styles = StyleSheet.create({
   },
   systemActionText: {
     fontSize: 14,
-    color: '#dc2626',
     fontWeight: '600',
   },
   systemActionTask: {
@@ -313,7 +338,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e5e7eb',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -321,7 +345,6 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#6b7280',
   },
   messageContent: {
     flex: 1,
@@ -334,16 +357,13 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
     marginRight: 8,
   },
   timestamp: {
     fontSize: 12,
-    color: '#9ca3af',
   },
   messageText: {
     fontSize: 14,
-    color: '#4b5563',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -357,19 +377,16 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#f9fafb',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
   sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#ef4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -392,7 +409,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#e5e7eb',
   },
   skeletonBubble: {
     flex: 1,
@@ -403,13 +419,11 @@ const styles = StyleSheet.create({
     width: '80%',
     height: 12,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
   },
   skeletonLineShort: {
     width: '50%',
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
   },
   emptyState: {
     flex: 1,
@@ -420,10 +434,8 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
   },
   emptyStateSubtext: {
     fontSize: 13,
-    color: '#9ca3af',
   },
 })

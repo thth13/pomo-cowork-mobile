@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import Svg, { Circle } from 'react-native-svg'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 import { SessionType, SessionStatus } from '@/types'
 import { useSocket } from '@/hooks/useSocket'
 import { API_URL } from '@/config/constants'
@@ -65,6 +67,8 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
     emitTimerTick,
     isConnected,
   } = useSocket()
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
   const [sessionType, setSessionType] = useState<SessionType>(SessionType.WORK)
   const [isStarting, setIsStarting] = useState(false)
   const [isPausing, setIsPausing] = useState(false)
@@ -695,15 +699,23 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const actionsLocked = !canTriggerAction()
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container, 
+      { 
+        backgroundColor: colors.card, 
+        shadowColor: colors.shadow,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }
+    ]}>
       <View style={styles.connectionStatus}>
         <View
           style={[
             styles.statusDot,
-            isConnected ? styles.statusDotOnline : styles.statusDotOffline,
+            isConnected ? { backgroundColor: colors.online } : { backgroundColor: colors.offline },
           ]}
         />
-        <Text style={styles.statusText}>
+        <Text style={[styles.statusText, { color: colors.textTertiary }]}>
           {isConnected ? 'Online' : 'Offline'}
         </Text>
       </View>
@@ -714,7 +726,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             cy="60"
             r="54"
             fill="none"
-            stroke="#e5e7eb"
+            stroke={colors.border}
             strokeWidth="8"
           />
           <Circle
@@ -724,10 +736,10 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             fill="none"
             stroke={
               activeSessionType === SessionType.WORK 
-                ? '#ef4444' 
+                ? colors.work
                 : activeSessionType === SessionType.SHORT_BREAK 
-                ? '#22c55e' 
-                : '#3b82f6'
+                ? colors.shortBreak
+                : colors.longBreak
             }
             strokeWidth="8"
             strokeDasharray={circumference}
@@ -739,9 +751,12 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
         <View style={styles.timerContent}>
           <Text style={[
             styles.time,
-            activeSessionType === SessionType.WORK && styles.timeWork,
-            activeSessionType === SessionType.SHORT_BREAK && styles.timeBreak,
-            activeSessionType === SessionType.LONG_BREAK && styles.timeLongBreak,
+            { color: activeSessionType === SessionType.WORK 
+              ? colors.work
+              : activeSessionType === SessionType.SHORT_BREAK 
+              ? colors.shortBreak
+              : colors.longBreak
+            },
           ]}>
             {formatTime(timeRemaining)}
           </Text>
@@ -751,13 +766,18 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             disabled={!!currentSession}
             style={[
               styles.labelButton,
+              { backgroundColor: colors.backgroundSecondary },
               currentSession && styles.labelButtonDisabled,
             ]}
           >
             <Text style={[
               styles.label,
-              activeSessionType === SessionType.SHORT_BREAK && styles.labelShortBreak,
-              activeSessionType === SessionType.LONG_BREAK && styles.labelLongBreak,
+              { color: activeSessionType === SessionType.WORK 
+                ? colors.textTertiary
+                : activeSessionType === SessionType.SHORT_BREAK 
+                ? colors.successDark
+                : colors.infoDark
+              },
             ]}>
               {getSessionTypeLabel(activeSessionType)}
             </Text>
@@ -767,11 +787,11 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
 
       <View style={styles.controls}>
         <View style={styles.currentTask}>
-          <Text style={styles.currentTaskLabel}>Текущая задача</Text>
+          <Text style={[styles.currentTaskLabel, { color: colors.textTertiary }]}>Текущая задача</Text>
           <Text
             style={[
               styles.currentTaskName,
-              !selectedTask && styles.currentTaskNameEmpty,
+              { color: selectedTask ? colors.text : colors.textPlaceholder },
             ]}
             numberOfLines={1}
           >
@@ -780,7 +800,10 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
         </View>
 
         {!currentSession ? (
-          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+          <TouchableOpacity 
+            style={[styles.startButton, { backgroundColor: colors.primary }]} 
+            onPress={handleStart}
+          >
             <Text style={styles.startButtonText}>Start</Text>
           </TouchableOpacity>
         ) : (
@@ -789,6 +812,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
               <TouchableOpacity
                 style={[
                   styles.resumeButton,
+                  { backgroundColor: colors.success },
                   (isResuming || actionsLocked) && styles.buttonDisabled,
                 ]}
                 onPress={handleResume}
@@ -800,6 +824,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
               <TouchableOpacity
                 style={[
                   styles.pauseButton,
+                  { backgroundColor: colors.warning },
                   (isPausing || actionsLocked) && styles.buttonDisabled,
                 ]}
                 onPress={handlePause}
@@ -811,6 +836,7 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
             <TouchableOpacity
               style={[
                 styles.stopButton,
+                { backgroundColor: colors.primaryDark },
                 (isPausing || isResuming) && styles.buttonDisabled,
               ]}
               onPress={handleStop}
@@ -827,16 +853,14 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 20,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 1,
+    elevation: 3,
   },
   connectionStatus: {
     alignSelf: 'stretch',
@@ -851,16 +875,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginRight: 6,
   },
-  statusDotOnline: {
-    backgroundColor: '#22c55e',
-  },
-  statusDotOffline: {
-    backgroundColor: '#ef4444',
-  },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
   },
   timerContainer: {
     position: 'relative',
@@ -879,37 +896,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  timeWork: {
-    color: '#ef4444',
-  },
-  timeBreak: {
-    color: '#22c55e',
-  },
-  timeLongBreak: {
-    color: '#3b82f6',
-  },
   labelButton: {
     marginTop: 2,
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 999,
-    backgroundColor: '#f8fafc',
   },
   labelButtonDisabled: {
     opacity: 0.6,
   },
   label: {
     fontSize: 14,
-    color: '#6b7280',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 1,
-  },
-  labelShortBreak: {
-    color: '#16a34a',
-  },
-  labelLongBreak: {
-    color: '#2563eb',
   },
   controls: {
     width: '100%',
@@ -923,25 +923,18 @@ const styles = StyleSheet.create({
   },
   currentTaskLabel: {
     fontSize: 12,
-    color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   currentTaskName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
-  },
-  currentTaskNameEmpty: {
-    color: '#94a3b8',
-    fontWeight: '400',
   },
   buttonRow: {
     flexDirection: 'row',
     gap: 12,
   },
   startButton: {
-    backgroundColor: '#ef4444',
     paddingHorizontal: 48,
     paddingVertical: 16,
     borderRadius: 12,
@@ -952,19 +945,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   pauseButton: {
-    backgroundColor: '#f59e0b',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,
   },
   resumeButton: {
-    backgroundColor: '#22c55e',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,
   },
   stopButton: {
-    backgroundColor: '#dc2626',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 12,

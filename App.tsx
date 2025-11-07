@@ -8,6 +8,8 @@ import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-
 import Toast from 'react-native-toast-message'
 import { useAuthStore } from './stores/useAuthStore'
 import { useTimerStore } from './stores/useTimerStore'
+import { useThemeStore } from './stores/useThemeStore'
+import { getTheme } from './config/theme'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 // Screens
@@ -22,19 +24,21 @@ const TAB_BAR_HEIGHT = 60
 
 function AppTabs() {
   const insets = useSafeAreaInsets()
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <Tab.Navigator
         initialRouteName="Pomodoro"
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#ef4444',
-          tabBarInactiveTintColor: '#94a3b8',
+          tabBarActiveTintColor: colors.tabBarActive,
+          tabBarInactiveTintColor: colors.tabBarInactive,
           tabBarStyle: {
             height: TAB_BAR_HEIGHT + insets.bottom,
-            backgroundColor: '#ffffff',
-            borderTopColor: '#e5e7eb',
+            backgroundColor: colors.tabBarBackground,
+            borderTopColor: colors.tabBarBorder,
             borderTopWidth: 1,
             elevation: 0,
             shadowOpacity: 0,
@@ -103,10 +107,13 @@ export default function App() {
     setTimerSettings: state.setTimerSettings,
     setAutoStartNextSession: state.setAutoStartNextSession,
   }))
+  const { theme, loadTheme } = useThemeStore()
+  const colors = getTheme(theme)
   const timerSettingsHydratedRef = React.useRef(false)
 
   useEffect(() => {
     checkAuth()
+    loadTheme()
   }, [])
 
   useEffect(() => {
@@ -173,20 +180,20 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer>
           <AppTabs />
-          <StatusBar style="auto" />
+          <StatusBar style={theme === 'dark' ? 'light' : 'auto'} />
         </NavigationContainer>
         <Toast 
           config={{
             success: (props) => (
               <View
                 style={{
-                  backgroundColor: '#10b981',
+                  backgroundColor: colors.success,
                   paddingHorizontal: 20,
                   paddingVertical: 16,
                   borderRadius: 12,
                   marginHorizontal: 16,
                   marginTop: 8,
-                  shadowColor: '#000',
+                  shadowColor: colors.shadow,
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.25,
                   shadowRadius: 8,
@@ -199,7 +206,7 @@ export default function App() {
                   </RNText>
                 )}
                 {props.text2 && (
-                  <RNText style={{ fontSize: 16, fontWeight: '500', color: '#f0fdf4' }}>
+                  <RNText style={{ fontSize: 16, fontWeight: '500', color: theme === 'dark' ? '#dcfce7' : '#f0fdf4' }}>
                     {props.text2}
                   </RNText>
                 )}
@@ -208,13 +215,13 @@ export default function App() {
             error: (props) => (
               <View
                 style={{
-                  backgroundColor: '#ef4444',
+                  backgroundColor: colors.error,
                   paddingHorizontal: 20,
                   paddingVertical: 16,
                   borderRadius: 12,
                   marginHorizontal: 16,
                   marginTop: 8,
-                  shadowColor: '#000',
+                  shadowColor: colors.shadow,
                   shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.25,
                   shadowRadius: 8,
@@ -227,7 +234,7 @@ export default function App() {
                   </RNText>
                 )}
                 {props.text2 && (
-                  <RNText style={{ fontSize: 16, fontWeight: '500', color: '#fef2f2' }}>
+                  <RNText style={{ fontSize: 16, fontWeight: '500', color: theme === 'dark' ? '#fecaca' : '#fef2f2' }}>
                     {props.text2}
                   </RNText>
                 )}
@@ -260,6 +267,8 @@ const TabIcon = ({
   focused: boolean
 }) => {
   const avatarUrl = useAuthStore((state) => state.user?.avatarUrl)
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
 
   if (name === 'profile' && avatarUrl) {
     const AVATAR_SIZE = 28
@@ -275,7 +284,7 @@ const TabIcon = ({
           padding: 2,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#fff',
+          backgroundColor: colors.card,
         }}
       >
         <Image

@@ -12,6 +12,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 
 type TimerField = 'workDuration' | 'shortBreak' | 'longBreak' | 'longBreakAfter'
 
@@ -60,6 +62,8 @@ export default function SettingsScreen() {
     user: state.user,
     updateUserSettings: state.updateUserSettings,
   }))
+  const { theme, toggleTheme } = useThemeStore()
+  const colors = getTheme(theme)
 
   const [formState, setFormState] = useState<FormState>({
     workDuration: String(workDuration),
@@ -226,13 +230,13 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Timer settings</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, { color: colors.text }]}>Timer settings</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Adjust durations in minutes for each session type
         </Text>
       </View>
@@ -245,44 +249,67 @@ export default function SettingsScreen() {
         </View>
       )}
 
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <SettingInput
           label="Focus length"
           value={formState.workDuration}
           onChangeText={(value) => handleChange('workDuration', value)}
+          colors={colors}
         />
         <SettingInput
           label="Short break"
           value={formState.shortBreak}
           onChangeText={(value) => handleChange('shortBreak', value)}
+          colors={colors}
         />
         <SettingInput
           label="Long break"
           value={formState.longBreak}
           onChangeText={(value) => handleChange('longBreak', value)}
+          colors={colors}
         />
         <SettingInput
           label="Long break after"
           caption="Number of focus sessions before a long break"
           value={formState.longBreakAfter}
           onChangeText={(value) => handleChange('longBreakAfter', value)}
+          colors={colors}
         />
       </View>
 
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.toggleRow}>
           <View style={styles.toggleHeader}>
-            <Text style={styles.toggleTitle}>Auto start</Text>
-            <Text style={styles.toggleCaption}>
+            <Text style={[styles.toggleTitle, { color: colors.text }]}>Dark theme</Text>
+            <Text style={[styles.toggleCaption, { color: colors.textSecondary }]}>
+              Switch between light and dark themes
+            </Text>
+          </View>
+          <Switch
+            value={theme === 'dark'}
+            onValueChange={toggleTheme}
+            trackColor={{ false: colors.border, true: colors.info }}
+            thumbColor={theme === 'dark' ? colors.infoLight : '#f8fafc'}
+            ios_backgroundColor={colors.border}
+            style={styles.toggleSwitch}
+          />
+        </View>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleHeader}>
+            <Text style={[styles.toggleTitle, { color: colors.text }]}>Auto start</Text>
+            <Text style={[styles.toggleCaption, { color: colors.textSecondary }]}>
               Automatically begin the next session when the current one ends.
             </Text>
           </View>
           <Switch
             value={autoStart}
             onValueChange={handleToggleAutoStart}
-            trackColor={{ false: '#cbd5f5', true: '#34d399' }}
-            thumbColor={autoStart ? '#059669' : '#f8fafc'}
-            ios_backgroundColor="#cbd5f5"
+            trackColor={{ false: colors.border, true: colors.success }}
+            thumbColor={autoStart ? colors.successDark : '#f8fafc'}
+            ios_backgroundColor={colors.border}
             style={styles.toggleSwitch}
           />
         </View>
@@ -291,18 +318,19 @@ export default function SettingsScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           onPress={handleReset}
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.card }]}
           activeOpacity={0.8}
           disabled={isSaving}
         >
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
+          <Text style={[styles.secondaryButtonText, { color: colors.textSecondary }]}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleSave}
           activeOpacity={0.8}
           style={[
             styles.primaryButton,
-            (!isDirty || !isValid || isSaving) && styles.primaryButtonDisabled,
+            { backgroundColor: colors.primary },
+            (!isDirty || !isValid || isSaving) && { backgroundColor: colors.primaryLight },
           ]}
           disabled={!isDirty || !isValid || isSaving}
         >
@@ -322,23 +350,29 @@ function SettingInput({
   caption,
   value,
   onChangeText,
+  colors,
 }: {
   label: string
   caption?: string
   value: string
   onChangeText: (value: string) => void
+  colors: ReturnType<typeof getTheme>
 }) {
   return (
     <View style={styles.inputGroup}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      {caption ? <Text style={styles.inputCaption}>{caption}</Text> : null}
+      <Text style={[styles.inputLabel, { color: colors.text }]}>{label}</Text>
+      {caption ? <Text style={[styles.inputCaption, { color: colors.textSecondary }]}>{caption}</Text> : null}
       <TextInput
         value={value}
         onChangeText={onChangeText}
         keyboardType="number-pad"
         placeholder="0"
-        placeholderTextColor="#cbd5f5"
-        style={styles.input}
+        placeholderTextColor={colors.textPlaceholder}
+        style={[styles.input, { 
+          borderColor: colors.inputBorder, 
+          backgroundColor: colors.inputBackground,
+          color: colors.text,
+        }]}
         maxLength={3}
         returnKeyType="done"
       />
@@ -349,7 +383,6 @@ function SettingInput({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   content: {
     padding: 20,
@@ -361,12 +394,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#0f172a',
   },
   subtitle: {
     marginTop: 6,
     fontSize: 14,
-    color: '#475569',
   },
   feedback: {
     paddingVertical: 10,
@@ -391,10 +422,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     padding: 18,
     marginBottom: 20,
     shadowColor: '#000',
@@ -409,11 +438,9 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
   },
   inputCaption: {
     fontSize: 12,
-    color: '#6b7280',
     marginTop: 4,
   },
   input: {
@@ -422,11 +449,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
   },
   toggleHeader: {
     flex: 1,
@@ -436,11 +460,9 @@ const styles = StyleSheet.create({
   toggleTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1f2937',
   },
   toggleCaption: {
     fontSize: 13,
-    color: '#64748b',
     marginTop: 4,
   },
   toggleRow: {
@@ -461,13 +483,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
   },
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#475569',
   },
   primaryButton: {
     flexDirection: 'row',
@@ -476,11 +495,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 14,
-    backgroundColor: '#ef4444',
     marginLeft: 12,
-  },
-  primaryButtonDisabled: {
-    backgroundColor: '#fca5a5',
   },
   primaryButtonText: {
     fontSize: 14,

@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import PomodoroTimer from '@/components/PomodoroTimer'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 import { API_URL } from '@/config/constants'
 import { Task } from '@/types'
 import { ActiveSessions } from '@/components/ActiveSessions'
@@ -22,6 +24,8 @@ export default function HomeScreen() {
     isRunning,
   } = useTimerStore()
   const { user, token } = useAuthStore()
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
   const [taskModalVisible, setTaskModalVisible] = React.useState(false)
   const insets = useSafeAreaInsets()
 
@@ -141,7 +145,7 @@ export default function HomeScreen() {
   )
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: colors.backgroundSecondary }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -151,21 +155,30 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator
       >
         <View style={styles.timerSection}>
-          <View style={styles.taskSelectorContainer}>
-            <Text style={styles.sectionLabel}>Task</Text>
+          <View style={[
+            styles.taskSelectorContainer,
+            { backgroundColor: colors.card, borderColor: colors.border }
+          ]}>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Task</Text>
             <TouchableOpacity
               onPress={handleOpenTaskModal}
               disabled={isRunning}
               style={[
                 styles.taskSelectorButton,
+                { 
+                  borderColor: colors.inputBorder, 
+                  backgroundColor: colors.inputBackground 
+                },
                 isRunning && styles.taskSelectorButtonDisabled,
               ]}
               activeOpacity={isRunning ? 1 : 0.7}
             >
-              <Text style={styles.taskSelectorValue} numberOfLines={1}>
+              <Text style={[styles.taskSelectorValue, { color: colors.text }]} numberOfLines={1}>
                 {selectedTask ? selectedTask.title : 'Not selected'}
               </Text>
-              <Text style={styles.taskSelectorCaret}>{isRunning ? '—' : '⌄'}</Text>
+              <Text style={[styles.taskSelectorCaret, { color: colors.textTertiary }]}>
+                {isRunning ? '—' : '⌄'}
+              </Text>
             </TouchableOpacity>
 
           </View>
@@ -196,7 +209,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   scroll: {
     flex: 1,
@@ -212,17 +224,14 @@ const styles = StyleSheet.create({
   },
   taskSelectorContainer: {
     width: '100%',
-    backgroundColor: '#ffffff',
     borderRadius: 10,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     gap: 8,
   },
   sectionLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569',
     letterSpacing: 0.4,
   },
   taskSelectorButton: {
@@ -233,8 +242,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
   },
   taskSelectorButtonDisabled: {
     opacity: 0.6,
@@ -244,11 +251,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
     fontSize: 14,
     fontWeight: '500',
-    color: '#0f172a',
   },
   taskSelectorCaret: {
     fontSize: 16,
-    color: '#94a3b8',
   },
   manageLink: {
     alignSelf: 'flex-start',

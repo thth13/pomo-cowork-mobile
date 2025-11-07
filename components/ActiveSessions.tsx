@@ -1,6 +1,8 @@
 import React from 'react'
 import { View, StyleSheet, Text, Image } from 'react-native'
 import { ActiveSession, SessionStatus, SessionType } from '@/types'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60)
@@ -74,6 +76,8 @@ type SessionCardProps = {
 }
 
 function SessionCard({ session, isCurrentUser }: SessionCardProps) {
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
   const sessionStatus = session.status ?? SessionStatus.ACTIVE
   const fallbackDurationSeconds = Math.max(1, (session.duration || 25) * 60)
   const storedRemainingSeconds =
@@ -161,22 +165,34 @@ function SessionCard({ session, isCurrentUser }: SessionCardProps) {
     : 'time unavailable'
 
   return (
-    <View style={[styles.sessionItem, isCurrentUser && styles.sessionItemCurrent]}>
+    <View style={[
+      styles.sessionItem, 
+      { backgroundColor: colors.backgroundTertiary, borderColor: colors.border },
+      isCurrentUser && { borderColor: colors.primary }
+    ]}>
       <View style={styles.sessionRow}>
         <View style={styles.sessionAvatarWrapper}>
           {session.avatarUrl ? (
             <Image source={{ uri: session.avatarUrl }} style={styles.sessionAvatar} />
           ) : (
-            <View style={styles.sessionAvatarFallback}>
-              <Text style={styles.sessionAvatarInitial}>{usernameInitial}</Text>
+            <View style={[styles.sessionAvatarFallback, { backgroundColor: colors.border }]}>
+              <Text style={[styles.sessionAvatarInitial, { color: colors.text }]}>
+                {usernameInitial}
+              </Text>
             </View>
           )}
-          <View style={[styles.sessionStatusDot, { backgroundColor: statusDotColor }]} />
+          <View style={[
+            styles.sessionStatusDot, 
+            { 
+              backgroundColor: statusDotColor,
+              borderColor: colors.card,
+            }
+          ]} />
         </View>
 
         <View style={styles.sessionInfo}>
           <View style={styles.sessionInfoHeader}>
-            <Text style={styles.sessionUsername} numberOfLines={1}>
+            <Text style={[styles.sessionUsername, { color: colors.text }]} numberOfLines={1}>
               {session.username}
             </Text>
             <View
@@ -200,15 +216,19 @@ function SessionCard({ session, isCurrentUser }: SessionCardProps) {
               </View>
             )}
           </View>
-          <Text style={styles.sessionTask} numberOfLines={1}>
+          <Text style={[styles.sessionTask, { color: colors.textSecondary }]} numberOfLines={1}>
             Task: {session.task || 'Focus session'}
           </Text>
-          <Text style={styles.sessionStartTime}>Started at {startTimeLabel}</Text>
+          <Text style={[styles.sessionStartTime, { color: colors.textTertiary }]}>
+            Started at {startTimeLabel}
+          </Text>
         </View>
 
         <View style={styles.sessionRight}>
-          <Text style={styles.sessionTime}>{formatTime(timeRemaining)}</Text>
-          <View style={styles.sessionProgressTrack}>
+          <Text style={[styles.sessionTime, { color: colors.text }]}>
+            {formatTime(timeRemaining)}
+          </Text>
+          <View style={[styles.sessionProgressTrack, { backgroundColor: colors.border }]}>
             <View
               style={[
                 styles.sessionProgressFill,
@@ -219,7 +239,9 @@ function SessionCard({ session, isCurrentUser }: SessionCardProps) {
               ]}
             />
           </View>
-          <Text style={styles.sessionStatusLabel}>{statusLabel.toLowerCase()}</Text>
+          <Text style={[styles.sessionStatusLabel, { color: colors.textTertiary }]}>
+            {statusLabel.toLowerCase()}
+          </Text>
         </View>
       </View>
     </View>
@@ -232,6 +254,8 @@ type ActiveSessionsProps = {
 }
 
 export function ActiveSessions({ sessions, currentUserId }: ActiveSessionsProps) {
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
   const activeSessions = React.useMemo(() => {
     return sessions.filter((session) => {
       const status = session.status ?? SessionStatus.ACTIVE
@@ -270,15 +294,29 @@ export function ActiveSessions({ sessions, currentUserId }: ActiveSessionsProps)
   const hasVisibleSessions = activeSessions.length > 0
 
   return (
-    <View style={styles.sessionsCard}>
+    <View style={[
+      styles.sessionsCard,
+      { 
+        backgroundColor: colors.card, 
+        shadowColor: colors.shadow,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }
+    ]}>
       <View style={styles.sessionsHeader}>
         <View>
-          <Text style={[styles.sectionLabel, styles.sessionsTitle]}>Currently Working</Text>
-          <Text style={styles.sessionsSubtitle}>Live sessions from your workspace</Text>
+          <Text style={[styles.sectionLabel, styles.sessionsTitle, { color: colors.textSecondary }]}>
+            Currently Working
+          </Text>
+          <Text style={[styles.sessionsSubtitle, { color: colors.textTertiary }]}>
+            Live sessions from your workspace
+          </Text>
         </View>
         <View style={styles.sessionsIndicator}>
           <View style={styles.sessionsIndicatorDot} />
-          <Text style={styles.sessionsIndicatorText}>{activeSessions.length} online</Text>
+          <Text style={[styles.sessionsIndicatorText, { color: colors.textSecondary }]}>
+            {activeSessions.length} online
+          </Text>
         </View>
       </View>
 
@@ -293,9 +331,14 @@ export function ActiveSessions({ sessions, currentUserId }: ActiveSessionsProps)
           ))}
         </View>
       ) : (
-        <View style={styles.sessionsEmpty}>
-          <Text style={styles.sessionsEmptyTitle}>No active sessions yet</Text>
-          <Text style={styles.sessionsEmptySubtitle}>
+        <View style={[
+          styles.sessionsEmpty,
+          { backgroundColor: colors.backgroundSecondary }
+        ]}>
+          <Text style={[styles.sessionsEmptyTitle, { color: colors.text }]}>
+            No active sessions yet
+          </Text>
+          <Text style={[styles.sessionsEmptySubtitle, { color: colors.textTertiary }]}>
             Start a Pomodoro to appear here or invite teammates to join.
           </Text>
         </View>
@@ -306,21 +349,18 @@ export function ActiveSessions({ sessions, currentUserId }: ActiveSessionsProps)
 
 const styles = StyleSheet.create({
   sessionsCard: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
     gap: 16,
     marginBottom: 16,
   },
   sectionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#475569',
     marginBottom: 10,
   },
   sessionsTitle: {
@@ -328,7 +368,6 @@ const styles = StyleSheet.create({
   },
   sessionsSubtitle: {
     fontSize: 12,
-    color: '#64748b',
     marginTop: 4,
   },
   sessionsHeader: {
@@ -351,13 +390,11 @@ const styles = StyleSheet.create({
   sessionsIndicatorText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#475569',
   },
   sessionsList: {
     gap: 12,
   },
   sessionsEmpty: {
-    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -367,27 +404,20 @@ const styles = StyleSheet.create({
   sessionsEmptyTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
   },
   sessionsEmptySubtitle: {
     fontSize: 12,
     textAlign: 'center',
-    color: '#64748b',
   },
   sessionItem: {
-    backgroundColor: '#f8fafc',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     padding: 16,
     shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.05,
     shadowRadius: 16,
     elevation: 3,
-  },
-  sessionItemCurrent: {
-    borderColor: '#ef4444',
   },
   sessionRow: {
     flexDirection: 'row',
@@ -407,14 +437,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   sessionAvatarInitial: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
   },
   sessionStatusDot: {
     position: 'absolute',
@@ -424,7 +452,6 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     borderWidth: 2,
-    borderColor: '#ffffff',
   },
   sessionInfo: {
     flex: 1,
@@ -440,7 +467,6 @@ const styles = StyleSheet.create({
   sessionUsername: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
     flexShrink: 1,
   },
   sessionBadge: {
@@ -448,8 +474,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: '#f1f5f9',
-    borderColor: '#e2e8f0',
   },
   sessionBadgeText: {
     fontSize: 12,
@@ -464,11 +488,9 @@ const styles = StyleSheet.create({
   },
   sessionTask: {
     fontSize: 13,
-    color: '#475569',
   },
   sessionStartTime: {
     fontSize: 12,
-    color: '#94a3b8',
   },
   sessionRight: {
     alignItems: 'flex-end',
@@ -479,13 +501,11 @@ const styles = StyleSheet.create({
   sessionTime: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0f172a',
   },
   sessionProgressTrack: {
     width: 88,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
     overflow: 'hidden',
   },
   sessionProgressFill: {
@@ -494,7 +514,6 @@ const styles = StyleSheet.create({
   },
   sessionStatusLabel: {
     fontSize: 12,
-    color: '#94a3b8',
     textTransform: 'capitalize',
   },
 })

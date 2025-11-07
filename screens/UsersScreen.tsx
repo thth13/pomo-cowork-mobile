@@ -1,10 +1,15 @@
 import React from 'react'
 import { StyleSheet, View } from 'react-native'
 import Chat from '@/components/Chat'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 
 export default function UsersScreen() {
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
         <Chat />
       </View>
@@ -15,7 +20,6 @@ export default function UsersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   content: {
     flex: 1,

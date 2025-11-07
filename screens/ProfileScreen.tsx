@@ -21,6 +21,8 @@ import Toast from 'react-native-toast-message'
 
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useTimerStore } from '@/stores/useTimerStore'
+import { useThemeStore } from '@/stores/useThemeStore'
+import { getTheme } from '@/config/theme'
 import { API_URL } from '@/config/constants'
 import type { UserSettings } from '@/types'
 
@@ -98,6 +100,8 @@ export default function ProfileScreen() {
   const { setTimerSettings } = useTimerStore((state) => ({
     setTimerSettings: state.setTimerSettings,
   }))
+  const theme = useThemeStore((state) => state.theme)
+  const colors = getTheme(theme)
 
   const [profileForm, setProfileForm] = useState({
     username: '',
@@ -549,13 +553,13 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.profileContent}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
         </View>
 
         <View style={styles.avatarBlock}>
@@ -563,8 +567,12 @@ export default function ProfileScreen() {
             {avatarPreview ? (
               <Image source={{ uri: avatarPreview }} style={styles.avatarImage} />
             ) : (
-              <View style={[styles.avatarImage, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarPlaceholderText}>
+              <View style={[
+                styles.avatarImage, 
+                styles.avatarPlaceholder,
+                { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' }
+              ]}>
+                <Text style={[styles.avatarPlaceholderText, { color: colors.error }]}>
                   {user.username?.charAt(0).toUpperCase() ?? '?'}
                 </Text>
               </View>
@@ -581,37 +589,59 @@ export default function ProfileScreen() {
 
         <View style={styles.inputStack}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Username</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Username</Text>
             <TextInput
               value={profileForm.username}
               onChangeText={(value) => handleProfileChange('username', value)}
               placeholder="Your username"
-              placeholderTextColor="#cbd5f5"
-              style={styles.fieldInput}
+              placeholderTextColor={colors.textPlaceholder}
+              style={[
+                styles.fieldInput,
+                { 
+                  borderColor: colors.inputBorder,
+                  backgroundColor: colors.inputBackground,
+                  color: colors.text,
+                }
+              ]}
             />
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Email</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Email</Text>
             <TextInput
               value={profileForm.email}
               onChangeText={(value) => handleProfileChange('email', value)}
               placeholder="your@email.com"
-              placeholderTextColor="#cbd5f5"
-              style={styles.fieldInput}
+              placeholderTextColor={colors.textPlaceholder}
+              style={[
+                styles.fieldInput,
+                { 
+                  borderColor: colors.inputBorder,
+                  backgroundColor: colors.inputBackground,
+                  color: colors.text,
+                }
+              ]}
               keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.inputLabel}>Description</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Description</Text>
             <TextInput
               value={profileForm.description}
               onChangeText={(value) => handleProfileChange('description', value)}
               placeholder="Tell us about yourself..."
-              placeholderTextColor="#cbd5f5"
-              style={[styles.fieldInput, styles.textArea]}
+              placeholderTextColor={colors.textPlaceholder}
+              style={[
+                styles.fieldInput, 
+                styles.textArea,
+                { 
+                  borderColor: colors.inputBorder,
+                  backgroundColor: colors.inputBackground,
+                  color: colors.text,
+                }
+              ]}
               multiline
               numberOfLines={4}
             />
@@ -620,34 +650,38 @@ export default function ProfileScreen() {
 
       </View>
 
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.preferenceHeader}>
-          <View style={styles.preferenceIcon}>
-            <Feather name="bell" size={18} color="#ef4444" />
+          <View style={[styles.preferenceIcon, { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' }]}>
+            <Feather name="bell" size={18} color={colors.primary} />
           </View>
           <View style={styles.preferenceText}>
-            <Text style={styles.preferenceTitle}>Notifications</Text>
-            <Text style={styles.preferenceSubtitle}>
+            <Text style={[styles.preferenceTitle, { color: colors.text }]}>Notifications</Text>
+            <Text style={[styles.preferenceSubtitle, { color: colors.textSecondary }]}>
               Heads-up alerts when sessions flip.
             </Text>
           </View>
           <Switch
             value={settingsState.notificationsEnabled}
             onValueChange={(value) => handleToggleSetting('notificationsEnabled', value)}
-            trackColor={{ false: '#cbd5f5', true: '#34d399' }}
-            thumbColor={settingsState.notificationsEnabled ? '#059669' : '#f8fafc'}
+            trackColor={{ false: colors.border, true: colors.success }}
+            thumbColor={settingsState.notificationsEnabled ? colors.successDark : '#f8fafc'}
           />
         </View>
 
-        <TouchableOpacity style={styles.primaryGhostButton} onPress={handleTestNotification} activeOpacity={0.85}>
-          <Text style={styles.primaryGhostText}>Test notification</Text>
+        <TouchableOpacity 
+          style={[styles.primaryGhostButton, { borderColor: colors.border }]} 
+          onPress={handleTestNotification} 
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.primaryGhostText, { color: colors.primary }]}>Test notification</Text>
         </TouchableOpacity>
-        {testMessage ? <Text style={styles.helperText}>{testMessage}</Text> : null}
+        {testMessage ? <Text style={[styles.helperText, { color: colors.textSecondary }]}>{testMessage}</Text> : null}
       </View>
 
-      <View style={[styles.card, styles.syncCard]}>
-        <Text style={styles.sectionTitle}>Sync changes</Text>
-        <Text style={styles.sectionCaption}>
+      <View style={[styles.card, styles.syncCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Sync changes</Text>
+        <Text style={[styles.sectionCaption, { color: colors.textSecondary }]}>
           Saving pushes updates to any active sessions you have open.
         </Text>
         {saveFeedback ? (
@@ -662,7 +696,11 @@ export default function ProfileScreen() {
         ) : null}
 
         <TouchableOpacity
-          style={[styles.primaryButton, (!canSave || isSaving) && styles.primaryButtonDisabled]}
+          style={[
+            styles.primaryButton, 
+            { backgroundColor: colors.primary },
+            (!canSave || isSaving) && { backgroundColor: colors.primaryLight }
+          ]}
           onPress={handleSave}
           disabled={!canSave || isSaving}
           activeOpacity={0.85}
@@ -677,8 +715,8 @@ export default function ProfileScreen() {
           )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.85}>
-          <Feather name="log-out" size={16} color="#ef4444" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Feather name="log-out" size={16} color={colors.error} />
+          <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -688,7 +726,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   profileContent: {
     padding: 20,
@@ -696,10 +733,8 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     padding: 16,
     shadowColor: '#0f172a',
     shadowOpacity: 0.04,
@@ -718,12 +753,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#0f172a',
   },
   sectionCaption: {
     marginTop: 4,
     fontSize: 13,
-    color: '#475569',
     lineHeight: 18,
   },
   avatarBlock: {
@@ -742,14 +775,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   avatarPlaceholder: {
-    backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarPlaceholderText: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#b91c1c',
   },
   avatarFab: {
     position: 'absolute',
@@ -775,18 +806,14 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0f172a',
     marginBottom: 8,
   },
   fieldInput: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
     borderRadius: 18,
     paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#0f172a',
-    backgroundColor: '#f8fafc',
   },
   textArea: {
     minHeight: 100,
@@ -795,7 +822,6 @@ const styles = StyleSheet.create({
   helperText: {
     marginTop: 6,
     fontSize: 12,
-    color: '#64748b',
   },
   preferenceHeader: {
     flexDirection: 'row',
@@ -807,7 +833,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 18,
-    backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -817,11 +842,9 @@ const styles = StyleSheet.create({
   preferenceTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
   },
   preferenceSubtitle: {
     fontSize: 13,
-    color: '#475569',
   },
   primaryGhostButton: {
     alignSelf: 'flex-start',
@@ -829,13 +852,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ef4444',
-    backgroundColor: '#fff5f5',
   },
   primaryGhostText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#b91c1c',
   },
   feedbackText: {
     marginTop: 12,
@@ -853,7 +873,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#ef4444',
     borderRadius: 999,
     paddingVertical: 14,
     marginBottom: 12,
@@ -875,7 +894,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   logoutText: {
-    color: '#ef4444',
     fontWeight: '600',
     fontSize: 14,
   },
