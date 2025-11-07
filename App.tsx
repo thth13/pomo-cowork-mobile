@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react'
 import { StatusBar } from 'expo-status-bar'
-import { Image, View } from 'react-native'
+import { Image, View, Text as RNText } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import Toast from 'react-native-toast-message'
 import { useAuthStore } from './stores/useAuthStore'
 import { useTimerStore } from './stores/useTimerStore'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -174,6 +175,66 @@ export default function App() {
           <AppTabs />
           <StatusBar style="auto" />
         </NavigationContainer>
+        <Toast 
+          config={{
+            success: (props) => (
+              <View
+                style={{
+                  backgroundColor: '#10b981',
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                  marginHorizontal: 16,
+                  marginTop: 8,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 8,
+                  elevation: 5,
+                }}
+              >
+                {props.text1 && (
+                  <RNText style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 }}>
+                    {props.text1}
+                  </RNText>
+                )}
+                {props.text2 && (
+                  <RNText style={{ fontSize: 16, fontWeight: '500', color: '#f0fdf4' }}>
+                    {props.text2}
+                  </RNText>
+                )}
+              </View>
+            ),
+            error: (props) => (
+              <View
+                style={{
+                  backgroundColor: '#ef4444',
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                  marginHorizontal: 16,
+                  marginTop: 8,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 8,
+                  elevation: 5,
+                }}
+              >
+                {props.text1 && (
+                  <RNText style={{ fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 }}>
+                    {props.text1}
+                  </RNText>
+                )}
+                {props.text2 && (
+                  <RNText style={{ fontSize: 16, fontWeight: '500', color: '#fef2f2' }}>
+                    {props.text2}
+                  </RNText>
+                )}
+              </View>
+            ),
+          }}
+        />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

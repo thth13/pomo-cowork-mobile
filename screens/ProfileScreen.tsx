@@ -11,14 +11,13 @@ import {
   Platform,
   ActivityIndicator,
   Switch,
-  ToastAndroid,
-  Alert,
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import * as Notifications from 'expo-notifications'
 import { useNavigation } from '@react-navigation/native'
 import type { NavigationProp } from '@react-navigation/native'
+import Toast from 'react-native-toast-message'
 
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useTimerStore } from '@/stores/useTimerStore'
@@ -70,12 +69,14 @@ export default function ProfileScreen() {
   ensureNotificationHandler()
 
   const navigation = useNavigation<NavigationProp<RootTabParamList>>()
-  const showProfileSaveToast = (message: string) => {
-    if (Platform.OS === 'android') {
-      ToastAndroid.show(message, ToastAndroid.SHORT)
-    } else {
-      Alert.alert('Success', message)
-    }
+  const showProfileSaveToast = (message: string, type: 'success' | 'error' = 'success') => {
+    Toast.show({
+      type,
+      text1: type === 'success' ? 'Success' : 'Error',
+      text2: message,
+      position: 'top',
+      visibilityTime: 3000,
+    })
   }
   const {
     user,
@@ -195,10 +196,7 @@ export default function ProfileScreen() {
   const handlePickAvatar = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
-      setSaveFeedback({
-        type: 'error',
-        message: 'Allow photo access to update your avatar.',
-      })
+      showProfileSaveToast('Allow photo access to update your avatar.', 'error')
       return
     }
 
@@ -259,10 +257,7 @@ export default function ProfileScreen() {
 
   const handleSave = async () => {
     if (!user || !token) {
-      setSaveFeedback({
-        type: 'error',
-        message: 'Please log in to update profile data.',
-      })
+      showProfileSaveToast('Please log in to update profile data.', 'error')
       return
     }
 
@@ -345,18 +340,12 @@ export default function ProfileScreen() {
       })
 
       setAvatarAsset(null)
-      setSaveFeedback({
-        type: 'success',
-        message: PROFILE_SAVE_SUCCESS_MESSAGE,
-      })
       showProfileSaveToast(PROFILE_SAVE_SUCCESS_MESSAGE)
       navigation.navigate('Pomodoro')
     } catch (error) {
       console.error('Failed to save profile:', error)
-      setSaveFeedback({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to save profile.',
-      })
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save profile.'
+      showProfileSaveToast(errorMessage, 'error')
     } finally {
       setIsSaving(false)
     }
