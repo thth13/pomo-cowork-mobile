@@ -73,13 +73,14 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const [isStarting, setIsStarting] = useState(false)
   const [isPausing, setIsPausing] = useState(false)
   const [isResuming, setIsResuming] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
   const startRequestIdRef = useRef<string | null>(null)
   const lastStartAtRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const canTriggerAction = useCallback(
-    () => !isStarting && !isPausing && !isResuming,
-    [isStarting, isPausing, isResuming]
+    () => !isStarting && !isPausing && !isResuming && !isStopping,
+    [isStarting, isPausing, isResuming, isStopping]
   )
 
   useEffect(() => {
@@ -296,9 +297,13 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
           throw new Error('Server response missing session id')
         }
 
+        const persistedStartedAtMs = new Date(persistedStartedAt).getTime()
+        const tempStartedAtMs = new Date(tempStartedAt).getTime()
+        const effectiveStartedAtMs = Math.min(persistedStartedAtMs, tempStartedAtMs)
+
         const elapsedSeconds = Math.max(
           0,
-          Math.floor((Date.now() - new Date(persistedStartedAt).getTime()) / 1000)
+          Math.floor((Date.now() - effectiveStartedAtMs) / 1000)
         )
         const syncedRemaining = Math.max(0, duration * 60 - elapsedSeconds)
 
@@ -604,40 +609,53 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   ])
 
   const handleStop = async () => {
-    if (currentSession) {
-      try {
-        const { token: authToken, anonymousId: resolvedAnonymousId } = await resolveAuthContext()
+    if (!currentSession) {
+      cancelSession()
+      return
+    }
 
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        }
+    if (isStopping || !canTriggerAction()) {
+      return
+    }
 
-        if (authToken) {
-          headers.Authorization = `Bearer ${authToken}`
-        }
+    setIsStopping(true)
 
-        const body: Record<string, unknown> = {
-          status: SessionStatus.CANCELLED,
-          endedAt: new Date().toISOString(),
-        }
+    const sessionId = currentSession.id
 
-        if (!authToken && resolvedAnonymousId) {
-          body.anonymousId = resolvedAnonymousId
-        }
+    try {
+      const { token: authToken, anonymousId: resolvedAnonymousId } = await resolveAuthContext()
 
-        await fetch(`${API_URL}/api/sessions/${currentSession.id}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(body),
-        })
-      } catch (error) {
-        console.error('Failed to stop session:', error)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
       }
 
-      emitSessionEnd(currentSession.id, 'manual')
+      if (authToken) {
+        headers.Authorization = `Bearer ${authToken}`
+      }
+
+      const body: Record<string, unknown> = {
+        status: SessionStatus.CANCELLED,
+        endedAt: new Date().toISOString(),
+      }
+
+      if (!authToken && resolvedAnonymousId) {
+        body.anonymousId = resolvedAnonymousId
+      }
+
+      await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(body),
+      })
+    } catch (error) {
+      console.error('Failed to stop session:', error)
+    } finally {
+      emitSessionEnd(sessionId, 'manual')
+      cancelSession()
+      setTimeout(() => {
+        setIsStopping(false)
+      }, 300)
     }
-    
-    cancelSession()
   }
 
   const getSessionDuration = (type: SessionType): number => {
@@ -801,8 +819,13 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
 
         {!currentSession ? (
           <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: colors.primary }]} 
+            style={[
+              styles.startButton, 
+              { backgroundColor: colors.primary },
+              actionsLocked && styles.buttonDisabled,
+            ]} 
             onPress={handleStart}
+            disabled={actionsLocked}
           >
             <Text style={styles.startButtonText}>Start</Text>
           </TouchableOpacity>
@@ -837,10 +860,10 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
               style={[
                 styles.stopButton,
                 { backgroundColor: colors.primaryDark },
-                (isPausing || isResuming) && styles.buttonDisabled,
+                (isPausing || isResuming || isStopping || actionsLocked) && styles.buttonDisabled,
               ]}
               onPress={handleStop}
-              disabled={isPausing || isResuming}
+              disabled={isPausing || isResuming || isStopping || actionsLocked}
             >
               <Text style={styles.buttonText}>Stop</Text>
             </TouchableOpacity>

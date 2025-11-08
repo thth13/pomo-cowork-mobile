@@ -6,11 +6,13 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   TextInput,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Switch,
+  Keyboard,
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
@@ -551,175 +553,216 @@ export default function ProfileScreen() {
     )
   }
 
+  const canGoBack = navigation.canGoBack()
+
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.profileContent}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
-        </View>
-
-        <View style={styles.avatarBlock}>
-          <View style={styles.avatarWrapper}>
-            {avatarPreview ? (
-              <Image source={{ uri: avatarPreview }} style={styles.avatarImage} />
-            ) : (
-              <View style={[
-                styles.avatarImage, 
-                styles.avatarPlaceholder,
-                { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' }
-              ]}>
-                <Text style={[styles.avatarPlaceholderText, { color: colors.error }]}>
-                  {user.username?.charAt(0).toUpperCase() ?? '?'}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={styles.avatarFab}
-              onPress={handlePickAvatar}
-              activeOpacity={0.85}
-            >
-              <Feather name="camera" size={16} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.inputStack}>
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Username</Text>
-            <TextInput
-              value={profileForm.username}
-              onChangeText={(value) => handleProfileChange('username', value)}
-              placeholder="Your username"
-              placeholderTextColor={colors.textPlaceholder}
-              style={[
-                styles.fieldInput,
-                { 
-                  borderColor: colors.inputBorder,
-                  backgroundColor: colors.inputBackground,
-                  color: colors.text,
-                }
-              ]}
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Email</Text>
-            <TextInput
-              value={profileForm.email}
-              onChangeText={(value) => handleProfileChange('email', value)}
-              placeholder="your@email.com"
-              placeholderTextColor={colors.textPlaceholder}
-              style={[
-                styles.fieldInput,
-                { 
-                  borderColor: colors.inputBorder,
-                  backgroundColor: colors.inputBackground,
-                  color: colors.text,
-                }
-              ]}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Description</Text>
-            <TextInput
-              value={profileForm.description}
-              onChangeText={(value) => handleProfileChange('description', value)}
-              placeholder="Tell us about yourself..."
-              placeholderTextColor={colors.textPlaceholder}
-              style={[
-                styles.fieldInput, 
-                styles.textArea,
-                { 
-                  borderColor: colors.inputBorder,
-                  backgroundColor: colors.inputBackground,
-                  color: colors.text,
-                }
-              ]}
-              multiline
-              numberOfLines={4}
-            />
-          </View>
-        </View>
-
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.preferenceHeader}>
-          <View style={[styles.preferenceIcon, { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' }]}>
-            <Feather name="bell" size={18} color={colors.primary} />
-          </View>
-          <View style={styles.preferenceText}>
-            <Text style={[styles.preferenceTitle, { color: colors.text }]}>Notifications</Text>
-            <Text style={[styles.preferenceSubtitle, { color: colors.textSecondary }]}>
-              Heads-up alerts when sessions flip.
-            </Text>
-          </View>
-          <Switch
-            value={settingsState.notificationsEnabled}
-            onValueChange={(value) => handleToggleSetting('notificationsEnabled', value)}
-            trackColor={{ false: colors.border, true: colors.success }}
-            thumbColor={settingsState.notificationsEnabled ? colors.successDark : '#f8fafc'}
-          />
-        </View>
-
-        <TouchableOpacity 
-          style={[styles.primaryGhostButton, { borderColor: colors.border }]} 
-          onPress={handleTestNotification} 
-          activeOpacity={0.85}
-        >
-          <Text style={[styles.primaryGhostText, { color: colors.primary }]}>Test notification</Text>
-        </TouchableOpacity>
-        {testMessage ? <Text style={[styles.helperText, { color: colors.textSecondary }]}>{testMessage}</Text> : null}
-      </View>
-
-      <View style={[styles.card, styles.syncCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Sync changes</Text>
-        <Text style={[styles.sectionCaption, { color: colors.textSecondary }]}>
-          Saving pushes updates to any active sessions you have open.
-        </Text>
-        {saveFeedback ? (
-          <Text
-            style={[
-              styles.feedbackText,
-              saveFeedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess,
-            ]}
-          >
-            {saveFeedback.message}
-          </Text>
-        ) : null}
-
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={styles.profileContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <View style={styles.topBar}>
         <TouchableOpacity
           style={[
-            styles.primaryButton, 
-            { backgroundColor: colors.primary },
-            (!canSave || isSaving) && { backgroundColor: colors.primaryLight }
+            styles.iconButton,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            },
+            !canGoBack && styles.iconButtonDisabled,
           ]}
-          onPress={handleSave}
-          disabled={!canSave || isSaving}
+          onPress={() => {
+            if (canGoBack) {
+              navigation.goBack()
+            }
+          }}
+          disabled={!canGoBack}
           activeOpacity={0.85}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
         >
-          {isSaving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Feather name="save" size={16} color="#fff" />
-              <Text style={styles.primaryButtonText}>Save profile</Text>
-            </>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.85}>
-          <Feather name="log-out" size={16} color={colors.error} />
-          <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
+          <Feather name="arrow-left" size={18} color={colors.text} />
         </TouchableOpacity>
       </View>
-    </ScrollView>
+
+      <View style={styles.contentStack}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Account</Text>
+          </View>
+
+          <View style={styles.avatarBlock}>
+            <View style={styles.avatarWrapper}>
+              {avatarPreview ? (
+                <Image source={{ uri: avatarPreview }} style={styles.avatarImage} />
+              ) : (
+                <View
+                  style={[
+                    styles.avatarImage,
+                    styles.avatarPlaceholder,
+                    { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' },
+                  ]}
+                >
+                  <Text style={[styles.avatarPlaceholderText, { color: colors.error }]}>
+                    {user.username?.charAt(0).toUpperCase() ?? '?'}
+                  </Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.avatarFab}
+                onPress={handlePickAvatar}
+                activeOpacity={0.85}
+              >
+                <Feather name="camera" size={16} color="#ffffff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputStack}>
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Username</Text>
+              <TextInput
+                value={profileForm.username}
+                onChangeText={(value) => handleProfileChange('username', value)}
+                placeholder="Your username"
+                placeholderTextColor={colors.textPlaceholder}
+                style={[
+                  styles.fieldInput,
+                  {
+                    borderColor: colors.inputBorder,
+                    backgroundColor: colors.inputBackground,
+                    color: colors.text,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Email</Text>
+              <TextInput
+                value={profileForm.email}
+                onChangeText={(value) => handleProfileChange('email', value)}
+                placeholder="your@email.com"
+                placeholderTextColor={colors.textPlaceholder}
+                style={[
+                  styles.fieldInput,
+                  {
+                    borderColor: colors.inputBorder,
+                    backgroundColor: colors.inputBackground,
+                    color: colors.text,
+                  },
+                ]}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Description</Text>
+              <TextInput
+                value={profileForm.description}
+                onChangeText={(value) => handleProfileChange('description', value)}
+                placeholder="Tell us about yourself..."
+                placeholderTextColor={colors.textPlaceholder}
+                style={[
+                  styles.fieldInput,
+                  styles.textArea,
+                  {
+                    borderColor: colors.inputBorder,
+                    backgroundColor: colors.inputBackground,
+                    color: colors.text,
+                  },
+                ]}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.preferenceHeader}>
+            <View
+              style={[
+                styles.preferenceIcon,
+                { backgroundColor: theme === 'dark' ? colors.errorLight : '#fee2e2' },
+              ]}
+            >
+              <Feather name="bell" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.preferenceText}>
+              <Text style={[styles.preferenceTitle, { color: colors.text }]}>Notifications</Text>
+              <Text style={[styles.preferenceSubtitle, { color: colors.textSecondary }]}>
+                Heads-up alerts when sessions flip.
+              </Text>
+            </View>
+            <Switch
+              value={settingsState.notificationsEnabled}
+              onValueChange={(value) => handleToggleSetting('notificationsEnabled', value)}
+              trackColor={{ false: colors.border, true: colors.success }}
+              thumbColor={settingsState.notificationsEnabled ? colors.successDark : '#f8fafc'}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.primaryGhostButton, { borderColor: colors.border }]}
+            onPress={handleTestNotification}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.primaryGhostText, { color: colors.primary }]}>Test notification</Text>
+          </TouchableOpacity>
+          {testMessage ? (
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>{testMessage}</Text>
+          ) : null}
+        </View>
+
+        <View
+          style={[styles.card, styles.syncCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Sync changes</Text>
+          <Text style={[styles.sectionCaption, { color: colors.textSecondary }]}>
+            Saving pushes updates to any active sessions you have open.
+          </Text>
+          {saveFeedback ? (
+            <Text
+              style={[
+                styles.feedbackText,
+                saveFeedback.type === 'error' ? styles.feedbackError : styles.feedbackSuccess,
+              ]}
+            >
+              {saveFeedback.message}
+            </Text>
+          ) : null}
+
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              { backgroundColor: colors.primary },
+              (!canSave || isSaving) && { backgroundColor: colors.primaryLight },
+            ]}
+            onPress={handleSave}
+            disabled={!canSave || isSaving}
+            activeOpacity={0.85}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Feather name="save" size={16} color="#fff" />
+                <Text style={styles.primaryButtonText}>Save profile</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.85}>
+            <Feather name="log-out" size={16} color={colors.error} />
+            <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
+      </ScrollView>
+    </TouchableWithoutFeedback>
   )
 }
 
@@ -728,9 +771,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileContent: {
-    padding: 20,
     paddingBottom: 32,
+  },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  contentStack: {
+    paddingHorizontal: 16,
     gap: 20,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  iconButtonDisabled: {
+    opacity: 0.4,
   },
   card: {
     borderRadius: 20,
@@ -747,6 +810,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
     marginBottom: 16,
   },
