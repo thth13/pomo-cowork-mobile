@@ -27,6 +27,7 @@ export default function HomeScreen() {
   const theme = useThemeStore((state) => state.theme)
   const colors = getTheme(theme)
   const [taskModalVisible, setTaskModalVisible] = React.useState(false)
+  const [cachedTasks, setCachedTasks] = React.useState<Task[]>([])
   const insets = useSafeAreaInsets()
 
   const bottomInset = React.useMemo(() => Math.max(insets.bottom, 16), [insets.bottom])
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   const loadTasks = React.useCallback(async (): Promise<Task[]> => {
     if (!user) {
       setTaskOptions([])
+      setCachedTasks([])
       return []
     }
 
@@ -53,6 +55,7 @@ export default function HomeScreen() {
       const resolvedToken = await resolveToken()
       if (!resolvedToken) {
         setTaskOptions([])
+        setCachedTasks([])
         return []
       }
 
@@ -83,14 +86,17 @@ export default function HomeScreen() {
             completedPomodoros: task.completedPomodoros,
           }))
         )
+        setCachedTasks(normalized)
         return normalized
       } else {
         setTaskOptions([])
+        setCachedTasks([])
         return []
       }
     } catch (error) {
       console.error('Failed to load tasks for selector:', error)
       setTaskOptions([])
+      setCachedTasks([])
       return []
     }
   }, [resolveToken, setTaskOptions, user])
@@ -201,6 +207,7 @@ export default function HomeScreen() {
         loadTasks={loadTasks}
         user={user}
         isSelectionLocked={isRunning}
+        prefetchedTasks={cachedTasks}
       />
     </View>
   )
