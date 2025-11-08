@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar'
 import { Image, View, Text as RNText } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createStackNavigator } from '@react-navigation/stack'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
@@ -19,10 +20,47 @@ import SettingsScreen from './screens/SettingsScreen'
 import UsersScreen from './screens/UsersScreen'
 import StatsScreen from './screens/StatsScreen'
 import ChatScreen from './screens/ChatScreen'
+import UserProfileScreen from './screens/UserProfileScreen'
+import type { ProfileStackParamList, UsersStackParamList } from './types/navigation'
 import { Feather } from '@expo/vector-icons'
 
 const Tab = createBottomTabNavigator()
+const UsersStack = createStackNavigator<UsersStackParamList>()
+const ProfileStack = createStackNavigator<ProfileStackParamList>()
 const TAB_BAR_HEIGHT = 60
+
+function UsersStackNavigator() {
+  return (
+    <UsersStack.Navigator screenOptions={{ headerShown: false }}>
+      <UsersStack.Screen name="UsersList" component={UsersScreen} />
+      <UsersStack.Screen name="UserProfile" component={UserProfileScreen} />
+    </UsersStack.Navigator>
+  )
+}
+
+function ProfileStackNavigator() {
+  const user = useAuthStore((state) => state.user)
+
+  return (
+    <ProfileStack.Navigator
+      key={user?.id ? `profile-${user.id}` : 'profile-guest'}
+      screenOptions={{ headerShown: false }}
+    >
+      {user ? (
+        <>
+          <ProfileStack.Screen
+            name="UserProfile"
+            component={UserProfileScreen as React.ComponentType<any>}
+            initialParams={{ userId: user.id }}
+          />
+          <ProfileStack.Screen name="ProfileSettings" component={ProfileScreen} />
+        </>
+      ) : (
+        <ProfileStack.Screen name="ProfileSettings" component={ProfileScreen} />
+      )}
+    </ProfileStack.Navigator>
+  )
+}
 
 function AppTabs() {
   const insets = useSafeAreaInsets()
@@ -80,12 +118,13 @@ function AppTabs() {
         />
         <Tab.Screen 
           name="Users" 
-          component={UsersScreen}
+          component={UsersStackNavigator}
           options={{
             title: 'Users',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon name="users" color={color} focused={focused} />
             ),
+            unmountOnBlur: true,
           }}
         />
         <Tab.Screen 
@@ -110,7 +149,7 @@ function AppTabs() {
         />
         <Tab.Screen 
           name="Profile" 
-          component={ProfileScreen}
+          component={ProfileStackNavigator}
           options={{
             title: 'Profile',
             tabBarIcon: ({ color, focused }) => (

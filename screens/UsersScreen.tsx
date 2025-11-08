@@ -1,6 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   ListRenderItem,
@@ -8,12 +7,18 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
+  type DimensionValue,
+  type ViewStyle,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
+import { useNavigation } from '@react-navigation/native'
+import type { StackNavigationProp } from '@react-navigation/stack'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { getTheme } from '@/config/theme'
 import { httpClient } from '@/services/httpClient'
+import type { UsersStackParamList } from '@/types/navigation'
 
 interface RawUser {
   id: string
@@ -35,6 +40,8 @@ type UserSearchResult = Omit<RawUser, 'stats'> & {
   }
 }
 
+type UsersScreenNavigationProp = StackNavigationProp<UsersStackParamList, 'UsersList'>
+
 const RANK_COLORS: Record<number, string> = {
   1: '#fbbf24', // gold
   2: '#94a3b8', // silver
@@ -44,6 +51,9 @@ const RANK_COLORS: Record<number, string> = {
 export default function UsersScreen() {
   const theme = useThemeStore((state) => state.theme)
   const colors = getTheme(theme)
+  const isDark = theme === 'dark'
+  const skeletonBaseColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const navigation = useNavigation<UsersScreenNavigationProp>()
 
   const [searchQuery, setSearchQuery] = useState('')
   const searchValueRef = useRef('')
@@ -134,12 +144,21 @@ export default function UsersScreen() {
     [users]
   )
 
+  const handleSelectUser = useCallback(
+    (userId: string) => {
+      navigation.navigate('UserProfile', { userId })
+    },
+    [navigation]
+  )
+
   const renderUserItem: ListRenderItem<UserSearchResult> = ({ item, index }) => {
     const place = item.rank ?? index + 1
     const accent = RANK_COLORS[place] ?? colors.borderLight
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.92}
+        onPress={() => handleSelectUser(item.id)}
         style={[
           styles.userCard,
           { backgroundColor: colors.card, borderColor: colors.border },
@@ -212,6 +231,84 @@ export default function UsersScreen() {
             <Text style={[styles.statValue, { color: colors.text }]}>{item.stats.totalPomodoros}</Text>
           </View>
         </View>
+      </TouchableOpacity>
+    )
+  }
+
+  const SkeletonLine = ({
+    width = '100%',
+    height = 12,
+    radius = 999,
+  }: {
+    width?: DimensionValue
+    height?: number
+    radius?: number
+  }) => {
+    const lineStyle: ViewStyle = {
+      width,
+      height,
+      borderRadius: radius,
+      backgroundColor: skeletonBaseColor,
+    }
+
+    return <View style={[styles.skeletonLine, lineStyle]} />
+  }
+
+  const SkeletonUserCard = () => (
+    <View style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.userCardHeader}>
+        <View style={[styles.skeletonRankBadge, { backgroundColor: skeletonBaseColor }]} />
+        <View style={[styles.userAvatar, styles.skeletonAvatar, { backgroundColor: skeletonBaseColor }]} />
+        <View style={styles.userDetails}>
+          <SkeletonLine width="60%" height={16} />
+          <SkeletonLine width="40%" height={12} />
+        </View>
+      </View>
+      <View style={styles.userStatsRow}>
+        <View
+          style={[
+            styles.statChip,
+            { backgroundColor: colors.backgroundSecondary, marginRight: 8 },
+          ]}
+        >
+          <SkeletonLine width="50%" />
+          <SkeletonLine width="70%" height={12} />
+        </View>
+        <View
+          style={[
+            styles.statChip,
+            { backgroundColor: colors.backgroundSecondary, marginLeft: 8 },
+          ]}
+        >
+          <SkeletonLine width="50%" />
+          <SkeletonLine width="70%" height={12} />
+        </View>
+      </View>
+    </View>
+  )
+
+  const EmptyStatePlaceholder = () => {
+    if (loading) {
+      return (
+        <View style={styles.skeletonList}>
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonUserCard key={index} />
+          ))}
+        </View>
+      )
+    }
+
+    return (
+      <View style={styles.emptyState}>
+        {errorMessage ? (
+          <View style={[styles.errorBox, { backgroundColor: colors.errorLight }]}>
+            <Text style={[styles.errorText, { color: colors.error }]}>{errorMessage}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.emptyLabel, { color: colors.textSecondary }]}>
+            {searchQuery.trim().length ? 'No users match your search' : 'No users to display yet'}
+          </Text>
+        )}
       </View>
     )
   }
@@ -255,30 +352,7 @@ export default function UsersScreen() {
             colors={[colors.primary]}
           />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            {loading ? (
-              <>
-                <ActivityIndicator color={colors.primary} />
-                <Text style={[styles.loadingLabel, { color: colors.textSecondary }]}>
-                  Loading users...
-                </Text>
-              </>
-            ) : errorMessage ? (
-              <View style={[styles.errorBox, { backgroundColor: colors.errorLight }]}>
-                <Text style={[styles.errorText, { color: colors.error }]}>
-                  {errorMessage}
-                </Text>
-              </View>
-            ) : (
-              <Text style={[styles.emptyLabel, { color: colors.textSecondary }]}>
-                {searchQuery.trim().length
-                  ? 'No users match your search'
-                  : 'No users to display yet'}
-              </Text>
-            )}
-          </View>
-        }
+        ListEmptyComponent={EmptyStatePlaceholder}
       />
     </View>
   )
@@ -319,10 +393,6 @@ const styles = StyleSheet.create({
   avatarFallbackText: {
     fontSize: 20,
     fontWeight: '700',
-  },
-  loadingLabel: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   emptyLabel: {
     fontSize: 15,
@@ -410,5 +480,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 40,
     gap: 12,
+  },
+  skeletonList: {
+    paddingTop: 8,
+    paddingBottom: 24,
+    gap: 0,
+  },
+  skeletonLine: {
+    marginBottom: 8,
+  },
+  skeletonAvatar: {
+    borderRadius: 25,
+  },
+  skeletonRankBadge: {
+    width: 48,
+    height: 28,
+    borderRadius: 12,
+    marginRight: 12,
   },
 })
