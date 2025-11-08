@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -47,21 +48,29 @@ export default function StatsScreen() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [activityPeriod, setActivityPeriod] = useState<ActivityPeriod>('7')
+  const [chartLoading, setChartLoading] = useState(false)
+  const isInitialLoad = useRef(true)
 
   const fetchStats = useCallback(async () => {
     if (!isAuthenticated) {
       setLoading(false)
+      setChartLoading(false)
       setStats(null)
+      isInitialLoad.current = true
       return
     }
 
-    setLoading(true)
+    const shouldShowSkeleton = isInitialLoad.current
+    if (shouldShowSkeleton) {
+      setLoading(true)
+    } else {
+      setChartLoading(true)
+    }
 
     try {
       const resolvedToken = token ?? (await AsyncStorage.getItem('auth_token'))
       if (!resolvedToken) {
         setStats(null)
-        setLoading(false)
         return
       }
 
@@ -82,7 +91,12 @@ export default function StatsScreen() {
       console.error('Failed to fetch stats:', error)
       setStats(null)
     } finally {
-      setLoading(false)
+      if (shouldShowSkeleton) {
+        setLoading(false)
+        isInitialLoad.current = false
+      } else {
+        setChartLoading(false)
+      }
     }
   }, [activityPeriod, isAuthenticated, token])
 
@@ -92,6 +106,8 @@ export default function StatsScreen() {
     } else {
       setStats(null)
       setLoading(false)
+      setChartLoading(false)
+      isInitialLoad.current = true
     }
   }, [fetchStats, isAuthenticated])
 
@@ -558,7 +574,19 @@ export default function StatsScreen() {
                 ))}
               </View>
             </View>
-            <BarChart data={weeklyActivityData} showEmptyState={!hasActivityData} />
+            <View style={styles.chartBody}>
+              <BarChart data={weeklyActivityData} showEmptyState={!hasActivityData} />
+              {chartLoading && (
+                <View
+                  style={[
+                    styles.chartLoadingOverlay,
+                    { backgroundColor: isDark ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.75)' },
+                  ]}
+                >
+                  <ActivityIndicator color={isDark ? '#ffffff' : '#1f2937'} />
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Yearly Heatmap */}
@@ -776,6 +804,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
   },
+  chartBody: {
+    position: 'relative',
+    minHeight: 220,
+    justifyContent: 'center',
+  },
   chartHeader: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -817,6 +850,16 @@ const styles = StyleSheet.create({
   chartContainer: {
     alignItems: 'center',
     position: 'relative',
+  },
+  chartLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
   chartEmptyState: {
     position: 'absolute',
