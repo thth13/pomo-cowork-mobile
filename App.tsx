@@ -18,6 +18,7 @@ import ProfileScreen from './screens/ProfileScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import UsersScreen from './screens/UsersScreen'
 import StatsScreen from './screens/StatsScreen'
+import ChatScreen from './screens/ChatScreen'
 import { Feather } from '@expo/vector-icons'
 
 const Tab = createBottomTabNavigator()
@@ -69,11 +70,21 @@ function AppTabs() {
         />
         <Tab.Screen 
           name="Chat" 
-          component={UsersScreen}
+          component={ChatScreen}
           options={{
             title: 'Chat',
             tabBarIcon: ({ color, focused }) => (
               <TabIcon name="chat" color={color} focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen 
+          name="Users" 
+          component={UsersScreen}
+          options={{
+            title: 'Users',
+            tabBarIcon: ({ color, focused }) => (
+              <TabIcon name="users" color={color} focused={focused} />
             ),
           }}
         />
@@ -258,12 +269,13 @@ export default function App() {
   )
 }
 
-type TabIconName = 'pomodoro' | 'chat' | 'stats' | 'settings' | 'profile'
+type TabIconName = 'pomodoro' | 'chat' | 'users' | 'stats' | 'settings' | 'profile'
 type FeatherIconName = React.ComponentProps<typeof Feather>['name']
 
 const TAB_ICON_MAP: Record<TabIconName, FeatherIconName> = {
   pomodoro: 'clock',
   chat: 'message-circle',
+  users: 'users',
   stats: 'bar-chart-2',
   settings: 'settings',
   profile: 'user',
