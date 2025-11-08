@@ -48,6 +48,8 @@ const RANK_COLORS: Record<number, string> = {
   3: '#f97316', // bronze
 }
 
+let cachedUsers: UserSearchResult[] | null = null
+
 export default function UsersScreen() {
   const theme = useThemeStore((state) => state.theme)
   const colors = getTheme(theme)
@@ -57,9 +59,9 @@ export default function UsersScreen() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const searchValueRef = useRef('')
-  const [users, setUsers] = useState<UserSearchResult[]>([])
-  const [filteredUsers, setFilteredUsers] = useState<UserSearchResult[]>([])
-  const [loading, setLoading] = useState(true)
+  const [users, setUsers] = useState<UserSearchResult[]>(() => cachedUsers ?? [])
+  const [filteredUsers, setFilteredUsers] = useState<UserSearchResult[]>(() => cachedUsers ?? [])
+  const [loading, setLoading] = useState(() => !cachedUsers)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -85,7 +87,22 @@ export default function UsersScreen() {
       },
     }))
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    if (!force && cachedUsers) {
+      const cachedList = cachedUsers
+      setUsers(cachedList)
+      const trimmed = searchValueRef.current.trim().toLowerCase()
+      if (!trimmed.length) {
+        setFilteredUsers(cachedList)
+      } else {
+        setFilteredUsers(
+          cachedList.filter((user) => user.username.toLowerCase().includes(trimmed))
+        )
+      }
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setErrorMessage(null)
@@ -97,6 +114,7 @@ export default function UsersScreen() {
       const eligibleUsers = normalizeUsers(data.users || []).filter(
         (user) => user.stats.totalPomodoros > 0 || user.stats.totalHours > 0
       )
+      cachedUsers = eligibleUsers
       setUsers(eligibleUsers)
       const trimmed = searchValueRef.current.trim().toLowerCase()
       if (!trimmed.length) {
@@ -124,7 +142,7 @@ export default function UsersScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await fetchUsers()
+    await fetchUsers({ force: true })
     setRefreshing(false)
   }, [fetchUsers])
 
