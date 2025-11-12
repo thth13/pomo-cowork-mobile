@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, AppState, AppStateStatus } from 'react-native'
 import Svg, { Circle } from 'react-native-svg'
 import { useTimerStore } from '@/stores/useTimerStore'
 import { useAuthStore } from '@/stores/useAuthStore'
@@ -77,6 +77,11 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
   const startRequestIdRef = useRef<string | null>(null)
   const lastStartAtRef = useRef<number>(0)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const appStateRef = useRef<AppStateStatus | null>(AppState.currentState)
+  const backgroundSinceRef = useRef<number | null>(null)
+  const latestTimeRemainingRef = useRef(timeRemaining)
+  const latestSessionRef = useRef(currentSession)
+  const latestIsRunningRef = useRef(isRunning)
 
   const canTriggerAction = useCallback(
     () => !isStarting && !isPausing && !isResuming && !isStopping,
@@ -147,6 +152,84 @@ export default function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps)
       handleSessionComplete()
     }
   }, [timeRemaining, currentSession])
+
+  useEffect(() => {
+    latestTimeRemainingRef.current = timeRemaining
+  }, [timeRemaining])
+
+  useEffect(() => {
+    latestSessionRef.current = currentSession
+  }, [currentSession])
+
+  useEffect(() => {
+    latestIsRunningRef.current = isRunning
+    if (!isRunning) {
+      backgroundSinceRef.current = null
+    }
+  }, [isRunning])
+
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      const prevState = appStateRef.current
+      const wasInBackground =
+        prevState === 'background' || prevState === 'inactive'
+      const becameActive = nextState === 'active' && wasInBackground
+
+      if (becameActive) {
+        const session = latestSessionRef.current
+        const backgroundSince = backgroundSinceRef.current
+
+        if (
+          session &&
+          session.status === SessionStatus.ACTIVE &&
+          typeof backgroundSince === 'number'
+        ) {
+          const elapsedSeconds = Math.floor((Date.now() - backgroundSince) / 1000)
+          if (elapsedSeconds > 0) {
+            const updatedRemaining = Math.max(
+              0,
+              latestTimeRemainingRef.current - elapsedSeconds
+            )
+
+            updateCurrentSession(session.id, { timeRemaining: updatedRemaining })
+            emitTimerTick(session.id, updatedRemaining)
+
+            sendMessageToServiceWorker({
+              type: 'SYNC_TIMER',
+              payload: {
+                sessionId: session.id,
+                duration: session.duration,
+                startedAt: session.startedAt,
+                timeRemaining: updatedRemaining,
+              },
+            })
+          }
+        }
+
+        backgroundSinceRef.current = null
+      }
+
+      if (nextState === 'background' || nextState === 'inactive') {
+        const session = latestSessionRef.current
+        if (
+          session &&
+          session.status === SessionStatus.ACTIVE &&
+          latestIsRunningRef.current
+        ) {
+          backgroundSinceRef.current = Date.now()
+        } else {
+          backgroundSinceRef.current = null
+        }
+      }
+
+      appStateRef.current = nextState
+    }
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange)
+    return () => {
+      subscription.remove()
+    }
+  }, [emitTimerTick, updateCurrentSession])
 
   useEffect(() => {
     if (!currentSession) {
